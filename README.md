@@ -1,7 +1,7 @@
 # Team PM
 
 Internal ClickUp-style project management tool for a 10–15 person team.
-React + Vite single-page app, hosted free on Cloudflare Pages, embedded in a GoHighLevel funnel page with an iframe.
+React + Vite single-page app, hosted free on GitHub Pages (`https://techteam-oss.github.io/team-pm/`), embedded in a GoHighLevel funnel page with an iframe.
 Data, login and files live in the Supabase project **team-pm** (`oxcoqixujubjiasimmwm`, Mumbai).
 
 ## Status: Phase 0 (setup and embed proof)
@@ -29,23 +29,23 @@ Never add the `service_role` / secret key to this repo or the frontend.
 
 ### 1. Supabase Auth settings (dashboard → Authentication)
 - **Sign In / Providers → Email:** keep enabled, turn **off** "Allow new users to sign up".
-- **URL Configuration → Site URL:** `https://<your-project>.pages.dev`
-- **URL Configuration → Redirect URLs:** add `https://<your-project>.pages.dev/**`
+- **URL Configuration → Site URL:** `https://techteam-oss.github.io/team-pm/`
+- **URL Configuration → Redirect URLs:** add `https://techteam-oss.github.io/team-pm//**`
 - **Add the first user:** Authentication → Users → "Invite user" (or "Add user" with a password).
   They open the app, sign in, and create the workspace; they become its owner.
 
-### 2. Cloudflare Pages (free)
-- Workers & Pages → Create → Pages → Connect to Git → pick `techteam-oss/team-pm`
-- Framework preset: **Vite** · Build command: `npm run build` · Output directory: `dist`
-- Environment variable: `NODE_VERSION = 22`
-- Every push to `main` redeploys. You get `https://<name>.pages.dev`.
+### 2. Hosting: GitHub Pages (free)
+- `.github/workflows/deploy.yml` builds and deploys on every push to `main`.
+- One-time: repo Settings → Pages → Source: **GitHub Actions**.
+- App URL: `https://techteam-oss.github.io/team-pm/`
+- (Cloudflare Pages also works: Vite preset, `npm run build`, output `dist`, `NODE_VERSION=22`.)
 
 ### 3. GoHighLevel funnel
 - Create a funnel step with no header/footer, section and row padding 0, full width.
 - Add a **Custom Code / HTML** element and paste:
 
 ```html
-<iframe src="https://<name>.pages.dev/" style="width:100%;height:100vh;border:0;display:block" allow="clipboard-write"></iframe>
+<iframe src="https://techteam-oss.github.io/team-pm/" style="width:100%;height:100vh;border:0;display:block" allow="clipboard-write"></iframe>
 <style>body{margin:0}</style>
 ```
 
