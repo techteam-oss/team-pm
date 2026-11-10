@@ -30,7 +30,7 @@ Never add the `service_role` / secret key to this repo or the frontend.
 ### 1. Supabase Auth settings (dashboard → Authentication)
 - **Sign In / Providers → Email:** keep enabled, turn **off** "Allow new users to sign up".
 - **URL Configuration → Site URL:** `https://techteam-oss.github.io/team-pm/`
-- **URL Configuration → Redirect URLs:** add `https://techteam-oss.github.io/team-pm//**`
+- **URL Configuration → Redirect URLs:** add `https://techteam-oss.github.io/team-pm/**`
 - **Add the first user:** Authentication → Users → "Invite user" (or "Add user" with a password).
   They open the app, sign in, and create the workspace; they become its owner.
 
