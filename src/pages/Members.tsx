@@ -16,6 +16,7 @@ export default function Members() {
   const [grant, setGrant] = useState<Record<string, Access | ''>>({})
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [link, setLink] = useState<string | null>(null)
 
   async function load() {
     if (!workspace) return
@@ -40,7 +41,7 @@ export default function Members() {
   async function invite(e: FormEvent) {
     e.preventDefault()
     if (!workspace) return
-    setBusy(true); setMsg(null)
+    setBusy(true); setMsg(null); setLink(null)
     const spaceList = Object.entries(grant).filter(([, a]) => a).map(([space_id, access]) => ({ space_id, access }))
     const { data, error } = await supabase.functions.invoke('invite-member', {
       body: { workspace_id: workspace.id, email, full_name: fullName, role, spaces: spaceList,
@@ -52,7 +53,9 @@ export default function Members() {
       try { const j = await (error as { context?: Response })?.context?.json(); if (j?.error) text = j.error } catch { /* ignore */ }
       setMsg({ ok: false, text }); return
     }
-    setMsg({ ok: true, text: data.invited ? `Invite email sent to ${email}.` : `${email} already had an account and was added.` })
+    if (!data.invited) setMsg({ ok: true, text: `${email} already had an account and was added.` })
+    else if (data.emailed) setMsg({ ok: true, text: `Invite email sent to ${email} through GoHighLevel.` })
+    else { setMsg({ ok: true, text: `${email} was added. Email sending isn't set up yet, so send them this invite link yourself:` }); setLink(data.invite_link) }
     setEmail(''); setFullName(''); setGrant({}); load()
   }
 
@@ -114,6 +117,12 @@ export default function Members() {
           </div>
         )}
         {msg && <div className={msg.ok ? 'notice' : 'error'}>{msg.text}</div>}
+        {link && (
+          <div className="row">
+            <input readOnly value={link} style={{ flex: 1 }} onFocus={e => e.target.select()} />
+            <button type="button" onClick={() => navigator.clipboard?.writeText(link)}>Copy link</button>
+          </div>
+        )}
         <div><button className="primary" disabled={busy}>{busy ? 'Sending…' : 'Send invite'}</button></div>
       </form>
 

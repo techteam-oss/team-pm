@@ -19,11 +19,10 @@ export default function Login() {
   async function forgot() {
     if (!email) { setError('Enter your email first.'); return }
     setBusy(true); setError(null)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + window.location.pathname,
-    })
+    // The reset email is sent by GoHighLevel, via the password-reset function.
+    const { error } = await supabase.functions.invoke('password-reset', { body: { email } })
     setBusy(false)
-    if (error) setError(error.message)
+    if (error) setError('Could not request a reset right now. Ask an admin to resend your invite.')
     else setNotice('If that email has an account, a reset link is on its way.')
   }
 
