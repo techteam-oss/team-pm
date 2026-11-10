@@ -8,6 +8,7 @@ import Home from './pages/Home'
 import Members from './pages/Members'
 import ListPage from './pages/ListPage'
 import MyTasks from './pages/MyTasks'
+import { TimerProvider } from './lib/time'
 
 function needsPassword() {
   try { return sessionStorage.getItem('team-pm-needs-password') === '1' } catch { return false }
@@ -22,6 +23,7 @@ export default function App() {
 
   return (
     <WorkspaceProvider>
+      <TimerProvider>
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -31,6 +33,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
+      </TimerProvider>
     </WorkspaceProvider>
   )
 }

@@ -1,15 +1,18 @@
 import { useState, type ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { isAdmin, useWorkspace } from '../lib/workspace'
 import ThemeSwitch from './ThemeSwitch'
+import { fmtClock, useNow, useTimer } from '../lib/time'
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { session } = useAuth()
   const { workspace, role, spaces, lists, level, refresh } = useWorkspace()
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const admin = isAdmin(role)
+  const { running, stop } = useTimer()
+  const now = useNow(!!running)
 
   async function addSpace() {
     const name = prompt('Space name')?.trim()
@@ -67,6 +70,14 @@ export default function Layout({ children }: { children: ReactNode }) {
         <header className="topbar">
           <div className="muted">{session!.user.email}{role && <span className="pill" style={{ marginLeft: 8 }}>{role}</span>}</div>
           <div className="row">
+            {running && (
+              <span className="timer-chip">
+                <Link to={`/list/${running.task?.list_id}?task=${running.task_id}`} title={running.task?.title}>
+                  ⏱ {fmtClock(now - new Date(running.started_at).getTime())} <span className="timer-title">{running.task?.title}</span>
+                </Link>
+                <button className="icon" title="Stop timer" onClick={stop}>■</button>
+              </span>
+            )}
             <ThemeSwitch userId={session!.user.id} />
             <button onClick={() => supabase.auth.signOut()}>Sign out</button>
           </div>

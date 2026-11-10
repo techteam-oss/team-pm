@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { useWorkspace } from '../lib/workspace'
 import { PRIORITIES, type Status } from '../lib/listData'
 import Avatar from './Avatar'
+import TimeSection from './TimeSection'
 
 type Full = {
   id: string; number: number; list_id: string; title: string; description: string | null; status_id: string | null
@@ -265,6 +266,8 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
           ))}
           {canEdit && <form onSubmit={addCheck}><input className="inline-add" placeholder="+ Add item" value={newCheck} onChange={e => setNewCheck(e.target.value)} /></form>}
         </section>
+
+        <TimeSection taskId={taskId} me={me} canEdit={canEdit} canManage={lvl >= 4} estimate={task.time_estimate_minutes} name={uid => name(uid)} />
 
         <section>
           <h4>Files</h4>
