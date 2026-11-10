@@ -36,6 +36,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <nav>
           <NavLink to="/" end>Home</NavLink>
           <NavLink to="/my">My tasks</NavLink>
+          <NavLink to="/dashboard">Dashboard</NavLink>
           {admin && <NavLink to="/members">Members</NavLink>}
         </nav>
         {workspace && (

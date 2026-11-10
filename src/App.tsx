@@ -8,6 +8,7 @@ import Home from './pages/Home'
 import Members from './pages/Members'
 import ListPage from './pages/ListPage'
 import MyTasks from './pages/MyTasks'
+import Dashboard from './pages/Dashboard'
 import { TimerProvider } from './lib/time'
 
 function needsPassword() {
@@ -28,6 +29,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/my" element={<MyTasks />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/members" element={<Members />} />
           <Route path="/list/:id" element={<ListPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
