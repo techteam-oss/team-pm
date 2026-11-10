@@ -32,6 +32,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <div className="ws-name">{workspace?.name ?? 'Team PM'}</div>
         <nav>
           <NavLink to="/" end>Home</NavLink>
+          <NavLink to="/my">My tasks</NavLink>
           {admin && <NavLink to="/members">Members</NavLink>}
         </nav>
         {workspace && (
