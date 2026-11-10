@@ -1,5 +1,7 @@
 // invite-member: lets a workspace owner/admin invite someone (or add an existing user)
 // with a role and per-space access. The service-role key stays on the server.
+// Emails go out through GoHighLevel: we POST the invite link to the GHL inbound webhook
+// in the GHL_EMAIL_WEBHOOK_URL secret, and a GHL workflow sends the email.
 import { createClient } from 'npm:@supabase/supabase-js@2.119.0'
 
 const ALLOWED_REDIRECTS = [
@@ -24,6 +26,15 @@ type Body = {
   role: (typeof ROLES)[number]
   spaces?: { space_id: string; access: (typeof ACCESS)[number] }[]
   redirect_to?: string
+}
+
+async function notifyGhl(payload: Record<string, string>): Promise<boolean> {
+  const hook = Deno.env.get('GHL_EMAIL_WEBHOOK_URL')
+  if (!hook) return false
+  try {
+    const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    return r.ok
+  } catch { return false }
 }
 
 Deno.serve(async (req) => {
@@ -60,17 +71,16 @@ Deno.serve(async (req) => {
 
   const redirectTo = ALLOWED_REDIRECTS.find((r) => body.redirect_to?.startsWith(r)) ?? ALLOWED_REDIRECTS[0]
 
-  // Invite, or reuse the account if this email already has one.
+  // Create the invite link ourselves (Supabase does not send any email) and hand it to GoHighLevel.
   let userId: string | undefined
-  let invited = false
-  const { data: inv, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo,
-    data: { full_name: body.full_name?.trim() || undefined },
+  let inviteLink: string | null = null
+  const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
+    type: 'invite', email, options: { redirectTo, data: { full_name: body.full_name?.trim() || undefined } },
   })
-  if (inv?.user) { userId = inv.user.id; invited = true }
+  if (link?.user) { userId = link.user.id; inviteLink = link.properties.action_link }
   else {
     const { data: existing } = await admin.from('profiles').select('id').eq('email', email).maybeSingle()
-    if (!existing) return json({ error: invErr?.message ?? 'Could not invite this email' }, 400)
+    if (!existing) return json({ error: linkErr?.message ?? 'Could not invite this email' }, 400)
     userId = existing.id
   }
 
@@ -89,5 +99,16 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500)
   }
 
-  return json({ ok: true, user_id: userId, invited })
+  let emailed = false
+  if (inviteLink) {
+    const { data: ws } = await admin.from('workspaces').select('name').eq('id', body.workspace_id).single()
+    const { data: inviter } = await admin.from('profiles').select('full_name, email').eq('id', caller.user.id).single()
+    emailed = await notifyGhl({
+      event: 'invite', email, name: body.full_name?.trim() || email.split('@')[0], link: inviteLink,
+      workspace: ws?.name ?? '', invited_by: inviter?.full_name || inviter?.email || '', role: body.role,
+    })
+  }
+
+  // The admin gets the link back too, so they can share it by hand if GoHighLevel is not set up yet.
+  return json({ ok: true, user_id: userId, invited: !!inviteLink, emailed, invite_link: inviteLink })
 })
