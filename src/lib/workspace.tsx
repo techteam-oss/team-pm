@@ -8,6 +8,7 @@ export type Access = 'view' | 'comment' | 'edit' | 'full'
 export type Workspace = { id: string; name: string }
 export type Space = { id: string; name: string; color: string; is_private: boolean; position: number }
 export type List = { id: string; space_id: string; name: string; position: number }
+export type Person = { id: string; name: string; email: string | null; role: Role }
 
 type State = {
   loading: boolean
@@ -16,6 +17,7 @@ type State = {
   spaces: Space[]
   lists: List[]
   myAccess: Record<string, Access>
+  people: Person[]
   refresh: () => Promise<void>
   level: (spaceId: string) => number
 }
@@ -27,7 +29,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth()
   const userId = session!.user.id
   const [s, set] = useState<Omit<State, 'refresh' | 'level'>>({
-    loading: true, workspace: null, role: null, spaces: [], lists: [], myAccess: {},
+    loading: true, workspace: null, role: null, spaces: [], lists: [], myAccess: {}, people: [],
   })
 
   const refresh = useCallback(async () => {
@@ -36,15 +38,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
     const { data: ws } = await supabase.from('workspaces').select('id, name').order('created_at').limit(1)
     const workspace = ws?.[0] ?? null
-    if (!workspace) { set({ loading: false, workspace: null, role: null, spaces: [], lists: [], myAccess: {} }); return }
+    if (!workspace) { set({ loading: false, workspace: null, role: null, spaces: [], lists: [], myAccess: {}, people: [] }); return }
 
-    const [{ data: me }, { data: spaces }, { data: lists }, { data: access }] = await Promise.all([
-      supabase.from('workspace_members').select('role').eq('workspace_id', workspace.id).eq('user_id', userId).single(),
+    const [{ data: members }, { data: spaces }, { data: lists }, { data: access }] = await Promise.all([
+      supabase.from('workspace_members').select('user_id, role').eq('workspace_id', workspace.id),
       supabase.from('spaces').select('id, name, color, is_private, position').eq('workspace_id', workspace.id).order('position').order('created_at'),
       supabase.from('lists').select('id, space_id, name, position').eq('workspace_id', workspace.id).eq('archived', false).order('position').order('created_at'),
       supabase.from('space_members').select('space_id, access').eq('user_id', userId),
     ])
+    const ids = (members ?? []).map(m => m.user_id)
+    const { data: profiles } = await supabase.from('profiles').select('id, full_name, email').in('id', ids)
+    const people: Person[] = (members ?? []).map(m => {
+      const p = profiles?.find(x => x.id === m.user_id)
+      return { id: m.user_id, name: p?.full_name || p?.email || 'Unknown', email: p?.email ?? null, role: m.role as Role }
+    }).sort((a, b) => a.name.localeCompare(b.name))
+    const me = members?.find(m => m.user_id === userId)
     set({
+      people,
       loading: false, workspace, role: (me?.role ?? null) as Role | null,
       spaces: spaces ?? [], lists: lists ?? [],
       myAccess: Object.fromEntries((access ?? []).map(a => [a.space_id, a.access as Access])),
