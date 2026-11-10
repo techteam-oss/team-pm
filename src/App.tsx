@@ -6,7 +6,7 @@ import Login from './pages/Login'
 import SetPassword from './pages/SetPassword'
 import Home from './pages/Home'
 import Members from './pages/Members'
-import ListView from './pages/ListView'
+import ListPage from './pages/ListPage'
 
 function needsPassword() {
   try { return sessionStorage.getItem('team-pm-needs-password') === '1' } catch { return false }
@@ -25,7 +25,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/members" element={<Members />} />
-          <Route path="/list/:id" element={<ListView />} />
+          <Route path="/list/:id" element={<ListPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
