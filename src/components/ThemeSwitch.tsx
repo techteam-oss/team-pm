@@ -1,9 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { applyTheme, getStoredTheme, type Theme } from '../lib/theme'
 import { supabase } from '../lib/supabase'
 
 export default function ThemeSwitch({ userId }: { userId: string }) {
   const [theme, setTheme] = useState<Theme>(getStoredTheme())
+
+  useEffect(() => {
+    const on = (e: Event) => setTheme((e as CustomEvent<Theme>).detail)
+    window.addEventListener('team-pm-theme', on)
+    return () => window.removeEventListener('team-pm-theme', on)
+  }, [])
 
   async function change(t: Theme) {
     setTheme(t)
