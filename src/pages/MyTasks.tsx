@@ -97,7 +97,7 @@ export default function MyTasks() {
           <h1>My tasks</h1>
           <div className="muted small">{openCount} open task{openCount === 1 ? '' : 's'} assigned to you</div>
         </div>
-        <label className="row small"><input type="checkbox" checked={showDone} onChange={e => setShowDone(e.target.checked)} /> Show done</label>
+        <label className="small nowrap" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}><input type="checkbox" style={{ width: 'auto' }} checked={showDone} onChange={e => setShowDone(e.target.checked)} /> Show done</label>
       </div>
 
       {comments.length > 0 && (
@@ -133,7 +133,7 @@ export default function MyTasks() {
                   <td>{t.status && <span className="status-chip" style={{ background: t.status.color }}>{t.status.name}</span>}</td>
                   <td className="muted small"><Link to={`/list/${t.list_id}`} onClick={e => e.stopPropagation()}>{where(t)}</Link></td>
                   <td>{t.priority !== 'normal' && <span className={`meta prio-${t.priority}`}>⚑ {t.priority}</span>}</td>
-                  <td className={`small ${isOverdue(t.due_date) && !t.status?.is_done ? 'overdue' : 'muted'}`}>{fmtDate(t.due_date)}</td>
+                  <td className={`small nowrap ${isOverdue(t.due_date) && !t.status?.is_done ? 'overdue' : 'muted'}`}>{fmtDate(t.due_date)}</td>
                 </tr>
               ))}
             </tbody></table>
