@@ -158,3 +158,25 @@ button.react.on { border-color: var(--accent); background: var(--hover); }
 .tile-value.overdue, b.overdue { color: #dc2626; }
 .card a, .chart-card a { color: var(--accent); }
 .nowrap { white-space: nowrap; }
+
+/* Mind map: horizontal tree with CSS connectors */
+.mindmap { overflow: auto; padding: 8px 0 24px; }
+.mm-tree, .mm-tree ul { list-style: none; margin: 0; padding: 0; }
+.mm-tree li { display: flex; align-items: center; position: relative; }
+.mm-tree ul { display: flex; flex-direction: column; padding-left: 28px; position: relative; }
+.mm-tree ul::before { content: ''; position: absolute; left: 0; top: 50%; width: 14px; border-top: 1.5px solid var(--border); }
+.mm-tree ul > li { padding: 4px 0 4px 14px; }
+.mm-tree ul > li::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--border); }
+.mm-tree ul > li:first-child::before { top: 50%; }
+.mm-tree ul > li:last-child::before { bottom: 50%; }
+.mm-tree ul > li:only-child::before { display: none; }
+.mm-tree ul > li::after { content: ''; position: absolute; left: 0; top: 50%; width: 14px; border-top: 1.5px solid var(--border); }
+.mm-node { display: inline-flex; align-items: center; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 8px; padding: 2px 4px 2px 0; white-space: nowrap; flex-shrink: 0; }
+.mm-node.done .mm-title { text-decoration: line-through; color: var(--muted); }
+.mm-root { border-left-color: var(--accent); font-weight: 600; padding-left: 10px; }
+.mm-title { background: none; border: 0; color: inherit; padding: 6px 8px; cursor: pointer; font: inherit; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.mm-root .mm-title { cursor: default; padding-left: 0; }
+.mm-plus, .mm-toggle { opacity: .55; }
+.mm-node:hover .mm-plus, .mm-node:hover .mm-toggle { opacity: 1; }
+.mm-toggle { font-size: 11px; min-width: 22px; }
+.mm-add input { width: 220px; }
