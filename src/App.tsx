@@ -1,8 +1,12 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './lib/auth'
+import { WorkspaceProvider } from './lib/workspace'
+import Layout from './components/Layout'
 import Login from './pages/Login'
 import SetPassword from './pages/SetPassword'
 import Home from './pages/Home'
+import Members from './pages/Members'
+import ListView from './pages/ListView'
 
 function needsPassword() {
   try { return sessionStorage.getItem('team-pm-needs-password') === '1' } catch { return false }
@@ -16,9 +20,15 @@ export default function App() {
   if (needsPassword()) return <SetPassword />
 
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <WorkspaceProvider>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/members" element={<Members />} />
+          <Route path="/list/:id" element={<ListView />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Layout>
+    </WorkspaceProvider>
   )
 }
