@@ -199,3 +199,13 @@ button.react.on { border-color: var(--accent); background: var(--hover); }
 .cal-task.done { text-decoration: line-through; color: var(--muted); }
 .cal-undated { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-height: 120px; }
 .cal-undated h4 { margin: 0 0 4px; }
+
+/* List toolbar: filters, sort, group */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.toolbar select { padding: 5px 8px; font-size: 13px; }
+.toolbar select.on { border-color: var(--accent); color: var(--accent); }
+.tb-search { width: 200px; padding: 6px 10px; font-size: 13px; }
+.tb-check, .tb-inline { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.tb-check input { width: auto; }
+.tb-spacer { flex: 1; }
+button.link { background: none; border: 0; color: var(--accent); padding: 4px; font-size: 13px; cursor: pointer; }
