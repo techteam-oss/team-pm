@@ -5,6 +5,7 @@ import { useWorkspace } from '../lib/workspace'
 import { PRIORITIES, type Status } from '../lib/listData'
 import Avatar from './Avatar'
 import TimeSection from './TimeSection'
+import { RichEditor } from './RichText'
 import { encodeMentions, MentionTextarea, renderMentions, type MentionPerson } from './Mentions'
 
 type Full = {
@@ -246,10 +247,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
 
         <section>
           <h4>Description</h4>
-          {canEdit
-            ? <textarea rows={4} key={`d-${task.description}`} defaultValue={task.description ?? ''} placeholder="Add details…"
-                onBlur={e => (e.target.value || null) !== task.description && patch({ description: e.target.value || null })} />
-            : <p className="pre">{task.description || <span className="muted">No description</span>}</p>}
+          <RichEditor value={task.description} canEdit={canEdit} onSave={v => patch({ description: v })} />
         </section>
 
         {!task.parent_task_id && (
