@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react'
+import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { linkError } = useAuth()
+  const [error, setError] = useState<string | null>(linkError ?? null)
   const [notice, setNotice] = useState<string | null>(null)
 
   async function signIn(e: FormEvent) {
