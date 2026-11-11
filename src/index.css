@@ -255,3 +255,21 @@ img.avatar { object-fit: cover; display: inline-block; padding: 0; }
 .me-link:hover .muted { color: var(--text); }
 .button-like { display: inline-block; border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; cursor: pointer; background: var(--surface); font-size: 14px; align-self: flex-start; }
 .button-like:hover { border-color: var(--accent); }
+
+/* Rich description */
+.rich { font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.rich p { margin: 0 0 8px; }
+.rich ul, .rich ol { margin: 0 0 8px; padding-left: 22px; }
+.rich li.rt-check { list-style: none; margin-left: -20px; }
+.rich li.rt-check input { width: auto; vertical-align: middle; }
+.rich li.rt-check .done { text-decoration: line-through; color: var(--muted); }
+.rich .rt-h { margin: 10px 0 6px; font-size: 15px; }
+.rich code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; font-size: 12.5px; }
+.rich .rt-code { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; overflow-x: auto; font-size: 12.5px; }
+.rich blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--border); color: var(--muted); }
+.rich a { color: var(--accent); }
+.rt-view { position: relative; padding: 8px 10px; border: 1px solid transparent; border-radius: 8px; }
+.rt-view:hover { border-color: var(--border); }
+.rt-edit { position: absolute; top: 4px; right: 6px; opacity: 0; }
+.rt-view:hover .rt-edit { opacity: 1; }
+.rt-empty { width: 100%; text-align: left; color: var(--muted); background: var(--bg); border: 1px dashed var(--border); padding: 12px; }
