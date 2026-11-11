@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Status } from '../lib/listData'
+import { notify } from './Dialogs'
 
 type Node = { id: string; number: number; title: string; status_id: string | null; parent_task_id: string | null; position: number }
 
@@ -38,7 +39,7 @@ export default function MindMap({ listId, listName, statuses, canEdit, onOpen }:
     const { error } = await supabase.from('tasks').insert({
       list_id: listId, title: t, parent_task_id: parent, status_id: statuses[0]?.id, position: (last?.position ?? 0) + 1000,
     })
-    if (error) alert(error.message)
+    if (error) notify(error.message)
     else { setTitle(''); if (parent) setCollapsed(c => ({ ...c, [parent]: false })); load() }
   }
 

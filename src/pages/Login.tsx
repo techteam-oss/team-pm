@@ -29,15 +29,15 @@ export default function Login() {
   }
 
   return (
-    <div className="center">
+    <div className="auth-wrap">
       <form className="card auth-card" onSubmit={signIn}>
-        <div className="brand">Team PM</div>
+        <div className="auth-logo"><span className="ws-logo" aria-hidden>T</span>Team PM</div>
         <h1>Sign in</h1>
-        <p className="muted">Invite-only. Ask an admin if you don't have an account.</p>
+        <p className="muted" style={{ margin: 0 }}>Welcome back. This workspace is invite-only, so ask an admin if you need an account.</p>
         <label>Email<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label>
         <label>Password<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
-        {error && <div className="error">{error}</div>}
-        {notice && <div className="notice">{notice}</div>}
+        {error && <div className="error" role="alert">{error}</div>}
+        {notice && <div className="notice" role="status">{notice}</div>}
         <button className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
         <button type="button" className="link" onClick={forgot} disabled={busy}>Forgot password?</button>
       </form>

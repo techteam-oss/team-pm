@@ -1,4 +1,6 @@
 import { useState, type DragEvent, type FormEvent } from 'react'
+import { CalendarDays, ChevronRight, Flag, Inbox, LayoutGrid, List as ListIcon, ListChecks, Network, Plus, Settings2, Eye } from 'lucide-react'
+import { SpaceBadge } from '../components/Layout'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useWorkspace } from '../lib/workspace'
 import { fmtDate, isOverdue, PRIORITIES, useListData, type Task } from '../lib/listData'
@@ -6,7 +8,7 @@ import Avatar from '../components/Avatar'
 import TaskPanel from '../components/TaskPanel'
 import MindMap from '../components/MindMap'
 import CalendarView from '../components/CalendarView'
-import ListToolbar from '../components/ListToolbar'
+import ListToolbar, { ViewOptions } from '../components/ListToolbar'
 import StatusEditor from '../components/StatusEditor'
 import { useAuth } from '../lib/auth'
 import { applyFilters, groupTasks, useListFilters } from '../lib/filters'
@@ -30,6 +32,9 @@ export default function ListPage() {
   const [dragging, setDragging] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<string | null>(null)
   const [editStatuses, setEditStatuses] = useState(false)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const toggle = (k: string) => setCollapsed(c => ({ ...c, [k]: !c[k] }))
+  const statusOf = (t: Task) => statuses.find(s => s.id === t.status_id)
 
   const setParam = (k: string, v: string | null) => {
     const next = new URLSearchParams(params)
@@ -63,56 +68,98 @@ export default function ListPage() {
 
   const person = (uid: string) => people.find(p => p.id === uid)
 
-  const row = (t: Task) => (
-    <tr key={t.id} className="task-row" onClick={() => setParam('task', t.id)}>
-                    <td className="muted small num">#{t.number}</td>
-                    <td className="title">{t.title} <span className="row-meta">{t.subtasks > 0 && <span className="meta">☑ {t.subtasks_done}/{t.subtasks}</span>}</span></td>
-                    <td className="avatars-cell"><span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} id={a} name={person(a)!.name} size={22} />)}</span></td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <select disabled={!canEdit} value={t.priority} onChange={e => update(t.id, { priority: e.target.value })} className={`prio-${t.priority}`}>
-                        {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                      </select>
-                    </td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <input type="date" className={isOverdue(t.due_date) && !(t.status_id && doneIds.has(t.status_id)) ? 'overdue' : ''} disabled={!canEdit} value={t.due_date ?? ''} onChange={e => update(t.id, { due_date: e.target.value || null })} />
-                    </td>
-                  </tr>
+  const row = (t: Task) => {
+    const st = statusOf(t)
+    return (
+      <tr key={t.id} className="task-row" onClick={() => setParam('task', t.id)}>
+        <td className="title">
+          <div className="title-cell">
+            <span className={`status-dot ${st?.is_done ? 'done' : ''}`} style={{ color: st?.color ?? 'var(--faint)' }} title={st?.name} aria-hidden />
+            <span className="t">{t.title}</span>
+            {t.subtasks > 0 && <span className="meta" title="Subtasks done"><ListChecks size={13} aria-hidden />{t.subtasks_done}/{t.subtasks}</span>}
+            <span className="tasknum">#{t.number}</span>
+          </div>
+        </td>
+        <td className="avatars-cell"><span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} id={a} name={person(a)!.name} size={24} />)}</span>
+          {t.assignees.length === 0 && <span className="muted small">—</span>}</td>
+        <td onClick={e => e.stopPropagation()}>
+          <input type="date" aria-label="Due date" className={`cell-ctl ${t.due_date ? '' : 'empty'} ${isOverdue(t.due_date) && !(t.status_id && doneIds.has(t.status_id)) ? 'overdue' : ''}`} disabled={!canEdit} value={t.due_date ?? ''} onChange={e => update(t.id, { due_date: e.target.value || null })} />
+        </td>
+        <td onClick={e => e.stopPropagation()}>
+          <span className={`prio-cell prio-${t.priority}`}>
+            <Flag size={13} fill={t.priority === 'urgent' || t.priority === 'high' ? 'currentColor' : 'none'} aria-hidden />
+            <select aria-label="Priority" disabled={!canEdit} value={t.priority} onChange={e => update(t.id, { priority: e.target.value })} className={`cell-ctl prio-${t.priority}`}>
+              {PRIORITIES.map(p => <option key={p} value={p}>{p[0].toUpperCase() + p.slice(1)}</option>)}
+            </select>
+          </span>
+        </td>
+      </tr>
+    )
+  }
+  const thead = (
+    <thead><tr><th>Name</th><th>Assignee</th><th>Due date</th><th>Priority</th></tr></thead>
+  )
+  const addRow = (statusId: string) => canEdit && (
+    <form className="add-row" onSubmit={e => add(e, statusId)}>
+      <Plus size={14} aria-hidden />
+      <input placeholder="Add task" aria-label="New task name" value={draft[statusId] ?? ''} onChange={e => setDraft(d => ({ ...d, [statusId]: e.target.value }))} />
+    </form>
   )
 
   if (!list) return <p className="muted">List not found, or you don't have access to it.</p>
 
   const meta = (t: Task) => (
     <>
-      {t.subtasks > 0 && <span className="meta">☑ {t.subtasks_done}/{t.subtasks}</span>}
-      {t.due_date && <span className={`meta ${isOverdue(t.due_date) ? 'overdue' : ''}`}>📅 {fmtDate(t.due_date)}</span>}
-      {t.priority !== 'normal' && <span className={`meta prio-${t.priority}`}>⚑ {t.priority}</span>}
-      <span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} id={a} name={person(a)!.name} size={20} />)}</span>
+      {t.priority !== 'normal' && <span className={`meta prio-${t.priority}`}><Flag size={12} fill={t.priority === 'low' ? 'none' : 'currentColor'} aria-hidden />{t.priority[0].toUpperCase() + t.priority.slice(1)}</span>}
+      {t.due_date && <span className={`meta ${isOverdue(t.due_date) && !(t.status_id && doneIds.has(t.status_id)) ? 'overdue' : ''}`}><CalendarDays size={12} aria-hidden />{fmtDate(t.due_date)}</span>}
+      {t.subtasks > 0 && <span className="meta"><ListChecks size={12} aria-hidden />{t.subtasks_done}/{t.subtasks}</span>}
+      <span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} id={a} name={person(a)!.name} size={22} />)}</span>
     </>
   )
+  const views = [
+    { key: 'list', label: 'List', icon: <ListIcon size={15} aria-hidden /> },
+    { key: 'board', label: 'Board', icon: <LayoutGrid size={15} aria-hidden /> },
+    { key: 'calendar', label: 'Calendar', icon: <CalendarDays size={15} aria-hidden /> },
+    { key: 'map', label: 'Mind map', icon: <Network size={15} aria-hidden /> },
+  ] as const
 
   return (
     <div className="stack">
-      <div className="page-head">
-        <div>
-          <div className="muted small">{space?.name}</div>
-          <h1>{list.name}</h1>
+      <div className="list-head">
+        <div className="crumbs">
+          {space && <SpaceBadge space={space} size={16} />}<span>{space?.name}</span>
+          <ChevronRight size={13} aria-hidden /><span>{list.name}</span>
         </div>
-        <div className="row">
-          {!canEdit && <span className="pill">View only</span>}
-          {list && level(list.space_id) >= 4 && <button onClick={() => setEditStatuses(true)} title="Edit statuses">⚙ Statuses</button>}
-          <div className="segmented">
-            <button className={view === 'list' ? 'on' : ''} onClick={() => setParam('view', null)}>☰ List</button>
-            <button className={view === 'board' ? 'on' : ''} onClick={() => setParam('view', 'board')}>▦ Board</button>
-            <button className={view === 'calendar' ? 'on' : ''} onClick={() => setParam('view', 'calendar')}>▤ Calendar</button>
-            <button className={view === 'map' ? 'on' : ''} onClick={() => setParam('view', 'map')}>✳ Mind map</button>
-          </div>
+        <div className="list-title-row">
+          <h1>{list.name}</h1>
+          {!canEdit && <span className="pill"><Eye size={12} aria-hidden />View only</span>}
+          {canEdit && view !== 'map' && statuses[0] && (
+            <button className="primary" onClick={() => {
+              const first = statuses.find(st => !st.is_done) ?? statuses[0]
+              if (view !== 'list' && view !== 'board') setParam('view', null)
+              setCollapsed(c => ({ ...c, [first.id]: false }))
+              requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-add="${first.id}"] input`)?.focus())
+            }}><Plus size={15} aria-hidden />Task</button>
+          )}
+        </div>
+        <div className="view-tabs" role="tablist" aria-label="Views">
+          {views.map(vw => (
+            <button key={vw.key} role="tab" aria-selected={view === vw.key} className={`view-tab ${view === vw.key ? 'on' : ''}`}
+              onClick={() => setParam('view', vw.key === 'list' ? null : vw.key)}>{vw.icon}{vw.label}</button>
+          ))}
+          <span className="spacer" />
+          {view !== 'map' && <ViewOptions f={f} set={setF} showGroup={view === 'list'} showSort={view !== 'calendar'} />}
+          {level(list.space_id) >= 4 && <button className="btn ghost small" onClick={() => setEditStatuses(true)}><Settings2 size={14} aria-hidden />Statuses</button>}
         </div>
       </div>
 
       {view !== 'map' && (
-        <ListToolbar f={f} set={setF} clear={clearF} people={people} showGroup={view === 'list'} showSort={view !== 'calendar'} />
+        <ListToolbar f={f} set={setF} clear={clearF} people={people} />
       )}
       {view === 'list' && tasks.length > 0 && shown.length === 0 && <p className="muted">No tasks match these filters.</p>}
+      {(view === 'list' || view === 'board') && tasks.length === 0 && !canEdit && (
+        <div className="card empty-state"><span className="ic"><Inbox size={20} aria-hidden /></span><h3>No tasks yet</h3><p>Tasks added to this list will show up here.</p></div>
+      )}
 
       {view === 'calendar' ? (
         <CalendarView tasks={shown} statuses={statuses} canEdit={canEdit} onOpen={tid => setParam('task', tid)} onMove={(tid, due) => update(tid, { due_date: due })} />
@@ -120,23 +167,28 @@ export default function ListPage() {
         <MindMap listId={list.id} listName={list.name} statuses={statuses} canEdit={canEdit} onOpen={tid => setParam('task', tid)} />
       ) : view === 'list' && f.group !== 'status' ? groupTasks(shown, f.group, uid => person(uid)?.name ?? 'Former member').map(g => (
         <div key={g.key} className="group">
-          <div className="group-head"><b>{g.label}</b><span className="muted small">{g.tasks.length}</span></div>
-          <table className="grid tasks"><tbody>{g.tasks.map(row)}</tbody></table>
+          <div className="group-head">
+            <button className="icon-btn group-toggle" aria-expanded={!collapsed[g.key]} aria-label={`Toggle ${g.label}`} onClick={() => toggle(g.key)}><ChevronRight size={14} className={`chev ${collapsed[g.key] ? '' : 'open'}`} /></button>
+            <b>{g.label}</b><span className="count">{g.tasks.length}</span>
+          </div>
+          {!collapsed[g.key] && <div className="group-body"><table className="tasks">{thead}<tbody>{g.tasks.map(row)}</tbody></table></div>}
         </div>
       )) : view === 'list' ? statuses.filter(st => !(f.hideDone && st.is_done)).map(st => {
         const rows = shown.filter(t => t.status_id === st.id)
         return (
           <div key={st.id} className="group">
-            <div className="group-head"><span className="status-chip" style={{ background: st.color }}>{st.name}</span><span className="muted small">{rows.length}</span></div>
-            <table className="grid tasks">
-              <tbody>
-                {rows.map(row)}
-              </tbody>
-            </table>
-            {canEdit && (
-              <form className="add-task" onSubmit={e => add(e, st.id)}>
-                <input placeholder="+ Add task" value={draft[st.id] ?? ''} onChange={e => setDraft(d => ({ ...d, [st.id]: e.target.value }))} />
-              </form>
+            <div className="group-head">
+              <button className="icon-btn group-toggle" aria-expanded={!collapsed[st.id]} aria-label={`Toggle ${st.name}`} onClick={() => toggle(st.id)}><ChevronRight size={14} className={`chev ${collapsed[st.id] ? '' : 'open'}`} /></button>
+              <span className="status-chip" style={{ background: st.color }}>{st.name}</span><span className="count">{rows.length}</span>
+            </div>
+            {!collapsed[st.id] && (
+              <div className="group-body" data-add={st.id}>
+                <table className="tasks">
+                  {rows.length > 0 && thead}
+                  <tbody>{rows.map(row)}</tbody>
+                </table>
+                {addRow(st.id)}
+              </div>
             )}
           </div>
         )
@@ -145,13 +197,13 @@ export default function ListPage() {
           {statuses.filter(st => !(f.hideDone && st.is_done)).map(st => {
             const col = shown.filter(t => t.status_id === st.id)
             return (
-              <div key={st.id} className={`column ${overCol === st.id ? 'over' : ''}`}
+              <div key={st.id} className={`column ${overCol === st.id ? 'over' : ''}`} style={{ ['--col' as string]: st.color }} data-add={st.id}
                 onDragOver={e => { if (canEdit) { e.preventDefault(); setOverCol(st.id) } }}
                 onDragLeave={() => setOverCol(c => c === st.id ? null : c)}
                 onDrop={e => drop(e, st.id)}>
                 <div className="column-head">
                   <span className="status-chip" style={{ background: st.color }}>{st.name}</span>
-                  <span className="muted small">{col.length}</span>
+                  <span className="count">{col.length}</span>
                 </div>
                 <div className="cards">
                   {col.map(t => (
@@ -162,13 +214,13 @@ export default function ListPage() {
                       onDrop={e => drop(e, st.id, t)}
                       onClick={() => setParam('task', t.id)}>
                       <div className="card-title">{t.title}</div>
-                      <div className="card-meta"><span className="muted small">#{t.number}</span>{meta(t)}</div>
+                      <div className="card-meta"><span className="tasknum">#{t.number}</span>{meta(t)}</div>
                     </div>
                   ))}
                 </div>
                 {canEdit && (
                   <form className="add-task" onSubmit={e => add(e, st.id)}>
-                    <input placeholder="+ Add task" value={draft[st.id] ?? ''} onChange={e => setDraft(d => ({ ...d, [st.id]: e.target.value }))} />
+                    <input placeholder="+ Add task" aria-label="New task name" value={draft[st.id] ?? ''} onChange={e => setDraft(d => ({ ...d, [st.id]: e.target.value }))} />
                   </form>
                 )}
               </div>

@@ -6,6 +6,7 @@ import { useWorkspace } from '../lib/workspace'
 import { fmtDate, isOverdue, type Status } from '../lib/listData'
 import TaskPanel from '../components/TaskPanel'
 import { mentionsToText } from '../components/Mentions'
+import { CheckCheck, Flag } from 'lucide-react'
 
 type MyTask = {
   id: string; number: number; title: string; priority: string; due_date: string | null
@@ -110,8 +111,8 @@ export default function MyTasks() {
 
       {comments.length > 0 && (
         <div className="group">
-          <div className="group-head"><b>Comments assigned to you</b><span className="muted small">{comments.length}</span></div>
-          <table className="grid tasks"><tbody>
+          <div className="group-head"><b>Comments assigned to you</b><span className="count">{comments.length}</span></div>
+          <div className="group-body"><table className="tasks"><tbody>
             {comments.map(c => (
               <tr key={c.id} className="task-row" onClick={() => setTask(c.task_id)}>
                 <td className="muted small num">#{c.task?.number}</td>
@@ -119,14 +120,14 @@ export default function MyTasks() {
                 <td className="muted small">{c.task ? where(c.task) : ''}</td>
               </tr>
             ))}
-          </tbody></table>
+          </tbody></table></div>
         </div>
       )}
 
       {mentions.length > 0 && (
         <div className="group">
           <div className="group-head"><b>Mentioned you</b><span className="muted small">last 14 days</span></div>
-          <table className="grid tasks"><tbody>
+          <div className="group-body"><table className="tasks"><tbody>
             {mentions.map(c => (
               <tr key={c.id} className="task-row" onClick={() => setTask(c.task_id)}>
                 <td className="muted small num">#{c.task?.number}</td>
@@ -134,12 +135,12 @@ export default function MyTasks() {
                 <td className="muted small">{new Date(c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</td>
               </tr>
             ))}
-          </tbody></table>
+          </tbody></table></div>
         </div>
       )}
 
       {loaded && openCount === 0 && comments.length === 0 && mentions.length === 0 && !showDone && (
-        <div className="card"><p className="muted">Nothing assigned to you right now. 🎉</p></div>
+        <div className="card empty-state"><span className="ic"><CheckCheck size={20} aria-hidden /></span><h3>You're all caught up</h3><p>Nothing is assigned to you right now.</p></div>
       )}
 
       {BUCKETS.map(b => {
@@ -147,19 +148,18 @@ export default function MyTasks() {
         if (!rows.length) return null
         return (
           <div key={b} className="group">
-            <div className="group-head"><b className={b === 'Overdue' ? 'overdue' : ''}>{b}</b><span className="muted small">{rows.length}</span></div>
-            <table className="grid tasks"><tbody>
+            <div className="group-head"><b className={b === 'Overdue' ? 'overdue' : ''}>{b}</b><span className="count">{rows.length}</span></div>
+            <div className="group-body"><table className="tasks"><tbody>
               {rows.map(t => (
                 <tr key={t.id} className="task-row" onClick={() => setTask(t.id)}>
-                  <td className="muted small num">#{t.number}</td>
-                  <td className="title">{t.status?.is_done ? <s>{t.title}</s> : t.title}</td>
+                                    <td className="title"><div className="title-cell"><span className={`status-dot ${t.status?.is_done ? 'done' : ''}`} style={{ color: t.status?.color ?? 'var(--faint)' }} aria-hidden /><span className={`t ${t.status?.is_done ? 'struck' : ''}`}>{t.title}</span></div></td>
                   <td>{t.status && <span className="status-chip" style={{ background: t.status.color }}>{t.status.name}</span>}</td>
                   <td className="muted small"><Link to={`/list/${t.list_id}`} onClick={e => e.stopPropagation()}>{where(t)}</Link></td>
-                  <td>{t.priority !== 'normal' && <span className={`meta prio-${t.priority}`}>⚑ {t.priority}</span>}</td>
-                  <td className={`small nowrap ${isOverdue(t.due_date) && !t.status?.is_done ? 'overdue' : 'muted'}`}>{fmtDate(t.due_date)}</td>
+                  <td>{t.priority !== 'normal' && <span className={`meta prio-${t.priority}`}><Flag size={12} fill="currentColor" aria-hidden />{t.priority[0].toUpperCase() + t.priority.slice(1)}</span>}</td>
+                  <td className={`small nowrap tasknum-col ${isOverdue(t.due_date) && !t.status?.is_done ? 'overdue' : 'muted'}`}>{fmtDate(t.due_date)}</td>
                 </tr>
               ))}
-            </tbody></table>
+            </tbody></table></div>
           </div>
         )
       })}

@@ -21,14 +21,14 @@ export default function SetPassword() {
   }
 
   return (
-    <div className="center">
+    <div className="auth-wrap">
       <form className="card auth-card" onSubmit={save}>
-        <div className="brand">Team PM</div>
+        <div className="auth-logo"><span className="ws-logo" aria-hidden>T</span>Team PM</div>
         <h1>Set your password</h1>
         <p className="muted">You'll use this with your email to sign in from now on.</p>
         <label>New password<input type="password" autoComplete="new-password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
         <label>Confirm password<input type="password" autoComplete="new-password" required value={confirm} onChange={e => setConfirm(e.target.value)} /></label>
-        {error && <div className="error">{error}</div>}
+        {error && <div className="error" role="alert">{error}</div>}
         <button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save password'}</button>
       </form>
     </div>

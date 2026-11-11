@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useWorkspace } from '../lib/workspace'
+import { askConfirm, notify } from '../components/Dialogs'
+import { Trash2 } from 'lucide-react'
 
 type Row = { id: string; number: number; title: string; list_id: string; space_id: string; parent_task_id: string | null; created_by: string | null; updated_at: string; deleted_at: string | null; deleted_by: string | null }
 
@@ -28,11 +30,11 @@ export default function Archive() {
   const canDelete = (r: Row) => level(r.space_id) >= 4 || (level(r.space_id) >= 3 && r.created_by === me)
 
   async function act(r: Row, kind: 'restore' | 'trash' | 'forever') {
-    if (kind === 'forever' && !confirm(`Delete "${r.title}" and its subtasks forever? This can't be undone.`)) return
+    if (kind === 'forever' && !await askConfirm({ title: `Delete "${r.title}" forever?`, body: "Its subtasks are deleted too. This can't be undone.", confirmLabel: 'Delete forever', danger: true })) return
     const { error } = kind === 'restore' ? await supabase.from('tasks').update({ archived: false }).eq('id', r.id)
       : kind === 'trash' ? await supabase.from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', r.id)
       : await supabase.from('tasks').delete().eq('id', r.id)
-    if (error) alert(error.message); else load()
+    if (error) notify(error.message); else load()
   }
 
   return (
@@ -41,7 +43,7 @@ export default function Archive() {
         <div><h1>Archive</h1><div className="muted small">{tab === 'trash' ? 'Deleted tasks. Restore them, or delete them for good.' : 'Archived tasks are hidden from lists, boards and dashboards but keep all their details.'}</div></div>
         <div className="segmented">
           <button className={tab === 'archived' ? 'on' : ''} onClick={() => setTab('archived')}>Archived</button>
-          <button className={tab === 'trash' ? 'on' : ''} onClick={() => setTab('trash')}>🗑 Trash</button>
+          <button className={tab === 'trash' ? 'on' : ''} onClick={() => setTab('trash')}><Trash2 size={13} aria-hidden />Trash</button>
         </div>
       </div>
       {tab === 'archived' && oldLists.length > 0 && (
@@ -52,7 +54,7 @@ export default function Archive() {
               <tr key={l.id}>
                 <td className="title">{l.name}</td>
                 <td className="muted small">{spaces.find(x => x.id === l.space_id)?.name}</td>
-                <td style={{ textAlign: 'right' }}>{level(l.space_id) >= 4 && <button onClick={async () => { const { error } = await supabase.from('lists').update({ archived: false }).eq('id', l.id); if (error) alert(error.message); else { load(); refresh() } }}>Restore list</button>}</td>
+                <td style={{ textAlign: 'right' }}>{level(l.space_id) >= 4 && <button onClick={async () => { const { error } = await supabase.from('lists').update({ archived: false }).eq('id', l.id); if (error) notify(error.message); else { load(); refresh() } }}>Restore list</button>}</td>
               </tr>
             ))}
           </tbody></table>

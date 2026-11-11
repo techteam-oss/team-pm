@@ -7,6 +7,8 @@ import Avatar from './Avatar'
 import TimeSection from './TimeSection'
 import { RichEditor } from './RichText'
 import { encodeMentions, MentionTextarea, renderMentions, type MentionPerson } from './Mentions'
+import { askConfirm, notify } from './Dialogs'
+import { Bell, BellRing, Paperclip, X } from 'lucide-react'
 
 type Full = {
   id: string; number: number; list_id: string; title: string; description: string | null; status_id: string | null
@@ -90,7 +92,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
   const name = (uid: string | null) => people.find(p => p.id === uid)?.name ?? 'Someone'
   const run = async (p: PromiseLike<{ error: { message: string } | null }>) => {
     const { error } = await p
-    if (error) alert(error.message)
+    if (error) notify(error.message)
     await load(); onChanged()
   }
   const patch = (fields: Partial<Full>) => {
@@ -135,30 +137,30 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
       : supabase.from('comment_reactions').insert({ comment_id: c.id, emoji }))
   }
   async function upload(file: File) {
-    if (file.size > 10 * 1024 * 1024) { alert('Files can be up to 10 MB.'); return }
+    if (file.size > 10 * 1024 * 1024) { notify('Files can be up to 10 MB.'); return }
     setUploading(true)
     const path = `${spaceId}/${taskId}/${crypto.randomUUID()}-${file.name.replace(/[^\w.-]+/g, '_')}`
     const { error } = await supabase.storage.from('attachments').upload(path, file, { contentType: file.type })
-    if (error) { alert(error.message); setUploading(false); return }
+    if (error) { notify(error.message); setUploading(false); return }
     await run(supabase.from('attachments').insert({ task_id: taskId, storage_path: path, file_name: file.name, size_bytes: file.size, mime_type: file.type }))
     setUploading(false)
   }
   async function openFile(a: Attachment) {
     const { data, error } = await supabase.storage.from('attachments').createSignedUrl(a.storage_path, 300)
-    if (error) alert(error.message); else window.open(data.signedUrl, '_blank', 'noopener')
+    if (error) notify(error.message); else window.open(data.signedUrl, '_blank', 'noopener')
   }
   async function removeFile(a: Attachment) {
-    if (!confirm(`Delete ${a.file_name}?`)) return
+    if (!await askConfirm({ title: `Delete ${a.file_name}?`, body: 'The file is removed for everyone.', confirmLabel: 'Delete file', danger: true })) return
     await supabase.storage.from('attachments').remove([a.storage_path])
     await run(supabase.from('attachments').delete().eq('id', a.id))
   }
   async function setArchive(fields: Partial<Full>, close: boolean) {
     const { error } = await supabase.from('tasks').update(fields).eq('id', taskId)
-    if (error) { alert(error.message); return }
+    if (error) { notify(error.message); return }
     onChanged()
     if (close) onClose(); else load()
   }
-  const trashTask = () => confirm('Move this task and its subtasks to the trash? You can restore it from Archive.') && setArchive({ deleted_at: new Date().toISOString() }, true)
+  const trashTask = async () => { if (await askConfirm({ title: 'Move this task to the trash?', body: 'Its subtasks go too. You can restore them from Archive.', confirmLabel: 'Move to trash', danger: true })) setArchive({ deleted_at: new Date().toISOString() }, true) }
 
   const describe = (a: Activity) => {
     const d = a.details as Record<string, string | null>
@@ -191,12 +193,12 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
             <button onClick={() => run(watching
               ? supabase.from('task_watchers').delete().eq('task_id', taskId).eq('user_id', me)
               : supabase.from('task_watchers').insert({ task_id: taskId }))}>
-              {watching ? '👁 Watching' : '👁 Watch'} · {watchers.length}
+              {watching ? <><BellRing size={14} aria-hidden />Watching</> : <><Bell size={14} aria-hidden />Watch</>} · {watchers.length}
             </button>
             {canEdit && !task.archived && <button onClick={() => setArchive({ archived: true }, true)} title="Hide from views, keep everything">Archive</button>}
             {canEdit && task.archived && <button onClick={() => setArchive({ archived: false }, false)}>Restore</button>}
             {!task.deleted_at && (lvl >= 4 || (canEdit && task.created_by === me)) && <button className="danger-link" onClick={trashTask}>Delete</button>}
-            <button onClick={onClose} aria-label="Close">✕</button>
+            <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
           </div>
         </div>
 
@@ -282,7 +284,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
           <h4>Files</h4>
           {files.map(f => (
             <div key={f.id} className="check-row">
-              <button className="link" onClick={() => openFile(f)}>📎 {f.file_name}</button>
+              <button className="link" onClick={() => openFile(f)}><Paperclip size={13} aria-hidden />{f.file_name}</button>
               <span className="muted small">{(f.size_bytes / 1024).toFixed(0)} KB</span>
               {(f.uploaded_by === me || lvl >= 4) && <button className="icon" onClick={() => removeFile(f)}>×</button>}
             </div>
@@ -305,7 +307,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
                   <Avatar name={name(item.c.user_id)} id={item.c.user_id} size={22} /><b>{name(item.c.user_id)}</b>
                   <span className="muted small">{ago(item.c.created_at)}</span>
                   {item.c.assigned_to && (
-                    <span className="pill">{item.c.resolved ? '✓ resolved' : `assigned to ${name(item.c.assigned_to)}`}</span>
+                    <span className="pill">{item.c.resolved ? 'Resolved' : `assigned to ${name(item.c.assigned_to)}`}</span>
                   )}
                 </div>
                 <div className="pre">{renderMentions(item.c.body, me)}</div>
@@ -320,7 +322,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
                   {item.c.assigned_to && !item.c.resolved && (item.c.assigned_to === me || canEdit) &&
                     <button className="link" onClick={() => run(supabase.from('comments').update({ resolved: true }).eq('id', item.c.id))}>Resolve</button>}
                   {(item.c.user_id === me || lvl >= 4) &&
-                    <button className="danger-link small" onClick={() => confirm('Delete comment?') && run(supabase.from('comments').delete().eq('id', item.c.id))}>Delete</button>}
+                    <button className="danger-link small" onClick={async () => { if (await askConfirm({ title: 'Delete this comment?', confirmLabel: 'Delete', danger: true })) run(supabase.from('comments').delete().eq('id', item.c.id)) }}>Delete</button>}
                 </div>
               </div>
             ))}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { notify } from '../components/Dialogs'
 import { supabase } from './supabase'
 
 export type Status = { id: string; name: string; color: string; position: number; is_done: boolean }
@@ -44,13 +45,13 @@ export function useListData(listId: string | undefined) {
   async function update(id: string, patch: Partial<Task>) {
     setTasks(ts => ts.map(t => t.id === id ? { ...t, ...patch } : t))
     const { error } = await supabase.from('tasks').update(patch).eq('id', id)
-    if (error) { alert(error.message); load() }
+    if (error) { notify(error.message); load() }
   }
 
   async function create(title: string, statusId: string) {
     const last = tasks.filter(t => t.status_id === statusId).at(-1)
     const { error } = await supabase.from('tasks').insert({ list_id: listId, title, status_id: statusId, position: (last?.position ?? 0) + 1000 })
-    if (error) alert(error.message); else load()
+    if (error) notify(error.message); else load()
   }
 
   return { statuses, tasks, load, update, create }
