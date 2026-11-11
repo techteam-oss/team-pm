@@ -69,15 +69,21 @@ Deno.serve(async (req) => {
     if ((found ?? []).length !== new Set(ids).size) return json({ error: 'One or more spaces are not in this workspace' }, 400)
   }
 
-  const redirectTo = ALLOWED_REDIRECTS.find((r) => body.redirect_to?.startsWith(r)) ?? ALLOWED_REDIRECTS[0]
+  const appUrl = ALLOWED_REDIRECTS.find((r) => body.redirect_to?.startsWith(r)) ?? ALLOWED_REDIRECTS[0]
+
+  // Self sign-up is blocked in the database; only emails on this list can get a new account.
+  await admin.from('signup_allowlist').upsert({ email })
 
   // Create the invite link ourselves (Supabase does not send any email) and hand it to GoHighLevel.
   let userId: string | undefined
   let inviteLink: string | null = null
   const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
-    type: 'invite', email, options: { redirectTo, data: { full_name: body.full_name?.trim() || undefined } },
+    type: 'invite', email, options: { redirectTo: appUrl, data: { full_name: body.full_name?.trim() || undefined } },
   })
-  if (link?.user) { userId = link.user.id; inviteLink = link.properties.action_link }
+  await admin.from('signup_allowlist').delete().eq('email', email) // only lingers if no account was created
+  // The link opens the app directly and the app verifies the token, so it doesn't rely on
+  // Supabase's Site URL / redirect settings.
+  if (link?.user) { userId = link.user.id; inviteLink = `${appUrl}?token_hash=${link.properties.hashed_token}&type=invite` }
   else {
     const { data: existing } = await admin.from('profiles').select('id').eq('email', email).maybeSingle()
     if (!existing) return json({ error: linkErr?.message ?? 'Could not invite this email' }, 400)

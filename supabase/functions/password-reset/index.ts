@@ -26,10 +26,12 @@ Deno.serve(async (req) => {
   if (!profile) return ok()
 
   const { data } = await admin.auth.admin.generateLink({ type: 'recovery', email, options: { redirectTo: REDIRECT } })
-  if (data?.properties?.action_link) {
+  if (data?.properties?.hashed_token) {
+    // Opens the app directly; the app verifies the token (no Supabase redirect settings needed).
+    const link = `${REDIRECT}?token_hash=${data.properties.hashed_token}&type=recovery`
     try {
       await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: 'password_reset', email, name: profile.full_name || email.split('@')[0], link: data.properties.action_link }) })
+        body: JSON.stringify({ event: 'password_reset', email, name: profile.full_name || email.split('@')[0], link }) })
     } catch { /* ignore */ }
   }
   return ok()
