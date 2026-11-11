@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useWorkspace } from '../lib/workspace'
 import { fmtDate, isOverdue, type Status } from '../lib/listData'
 import TaskPanel from '../components/TaskPanel'
+import { mentionsToText } from '../components/Mentions'
 
 type Hit = { id: string; number: number; title: string; list_id: string; space_id: string; due_date: string | null; parent_task_id: string | null; status: { name: string; color: string; is_done: boolean } | null }
 
@@ -73,7 +74,7 @@ export default function Search() {
                 {comments.map((c, i) => (
                   <tr key={i} className="task-row" onClick={() => set('task', c.task_id)}>
                     <td className="muted small num">#{c.task?.number}</td>
-                    <td className="title">{c.body.length > 140 ? c.body.slice(0, 140) + '…' : c.body}<div className="muted small">on {c.task?.title}</div></td>
+                    <td className="title">{mentionsToText(c.body).slice(0, 140)}{mentionsToText(c.body).length > 140 ? '…' : ''}<div className="muted small">on {c.task?.title}</div></td>
                     <td className="muted small">{c.task ? where(c.task.list_id) : ''}</td>
                   </tr>
                 ))}

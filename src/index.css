@@ -220,3 +220,10 @@ table.tasks td.muted.small { white-space: nowrap; }
 .status-edit input[aria-label="Status name"] { flex: 1; min-width: 0; }
 button.danger { color: #dc2626; }
 .banner { background: color-mix(in srgb, #f59e0b 15%, transparent); border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+.mention-wrap { position: relative; }
+.mention-wrap textarea { width: 100%; }
+.mention-menu { position: absolute; left: 0; bottom: calc(100% + 4px); z-index: 60; list-style: none; margin: 0; padding: 4px; min-width: 240px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.18); }
+.mention-menu li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.mention-menu li.on, .mention-menu li:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.mention { color: var(--accent); font-weight: 600; }
+.mention.me { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 4px; padding: 0 3px; }

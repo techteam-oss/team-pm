@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import { useWorkspace } from '../lib/workspace'
 import { fmtDate, isOverdue, type Status } from '../lib/listData'
 import TaskPanel from '../components/TaskPanel'
+import { mentionsToText } from '../components/Mentions'
 
 type MyTask = {
   id: string; number: number; title: string; priority: string; due_date: string | null
@@ -32,22 +33,28 @@ export default function MyTasks() {
   const [params, setParams] = useSearchParams()
   const [tasks, setTasks] = useState<MyTask[]>([])
   const [comments, setComments] = useState<MyComment[]>([])
+  const [mentions, setMentions] = useState<MyComment[]>([])
   const [showDone, setShowDone] = useState(false)
   const [statuses, setStatuses] = useState<Status[]>([])
   const [loaded, setLoaded] = useState(false)
   const openTask = params.get('task')
 
   const load = useCallback(async () => {
-    const [{ data: tk }, { data: cm }] = await Promise.all([
+    const since = new Date(Date.now() - 14 * 86400000).toISOString()
+    const [{ data: tk }, { data: cm }, { data: mn }] = await Promise.all([
       supabase.from('tasks')
         .select('id, number, title, priority, due_date, list_id, space_id, status:statuses(name, color, is_done), task_assignees!inner(user_id)')
         .eq('task_assignees.user_id', uid).eq('archived', false).order('due_date', { nullsFirst: false }).limit(500),
       supabase.from('comments')
         .select('id, body, task_id, space_id, created_at, task:tasks(title, number, list_id)')
         .eq('assigned_to', uid).eq('resolved', false).order('created_at', { ascending: false }).limit(100),
+      supabase.from('comments')
+        .select('id, body, task_id, space_id, created_at, task:tasks(title, number, list_id)')
+        .like('body', `%](${uid})%`).neq('user_id', uid).gte('created_at', since).order('created_at', { ascending: false }).limit(30),
     ])
     setTasks((tk ?? []) as unknown as MyTask[])
     setComments((cm ?? []) as unknown as MyComment[])
+    setMentions(((mn ?? []) as unknown as MyComment[]).filter(m => !(cm ?? []).some(c => c.id === m.id)))
     setLoaded(true)
   }, [uid])
 
@@ -62,8 +69,9 @@ export default function MyTasks() {
   }, [uid, load])
 
   const open = tasks.find(t => t.id === openTask)
-  const openSpace = open?.space_id ?? comments.find(c => c.task_id === openTask)?.space_id
-  const openList = open?.list_id ?? comments.find(c => c.task_id === openTask)?.task?.list_id
+  const allComments = [...comments, ...mentions]
+  const openSpace = open?.space_id ?? allComments.find(c => c.task_id === openTask)?.space_id
+  const openList = open?.list_id ?? allComments.find(c => c.task_id === openTask)?.task?.list_id
   useEffect(() => {
     if (!openList) { setStatuses([]); return }
     supabase.from('statuses').select('id, name, color, position, is_done').eq('list_id', openList).order('position')
@@ -107,7 +115,7 @@ export default function MyTasks() {
             {comments.map(c => (
               <tr key={c.id} className="task-row" onClick={() => setTask(c.task_id)}>
                 <td className="muted small num">#{c.task?.number}</td>
-                <td className="title">{c.body.length > 120 ? c.body.slice(0, 120) + '…' : c.body}<div className="muted small">on {c.task?.title}</div></td>
+                <td className="title">{mentionsToText(c.body).slice(0, 120)}{mentionsToText(c.body).length > 120 ? '…' : ''}<div className="muted small">on {c.task?.title}</div></td>
                 <td className="muted small">{c.task ? where(c.task) : ''}</td>
               </tr>
             ))}
@@ -115,7 +123,22 @@ export default function MyTasks() {
         </div>
       )}
 
-      {loaded && openCount === 0 && comments.length === 0 && !showDone && (
+      {mentions.length > 0 && (
+        <div className="group">
+          <div className="group-head"><b>Mentioned you</b><span className="muted small">last 14 days</span></div>
+          <table className="grid tasks"><tbody>
+            {mentions.map(c => (
+              <tr key={c.id} className="task-row" onClick={() => setTask(c.task_id)}>
+                <td className="muted small num">#{c.task?.number}</td>
+                <td className="title">{mentionsToText(c.body).slice(0, 120)}{mentionsToText(c.body).length > 120 ? '…' : ''}<div className="muted small">on {c.task?.title}</div></td>
+                <td className="muted small">{new Date(c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</td>
+              </tr>
+            ))}
+          </tbody></table>
+        </div>
+      )}
+
+      {loaded && openCount === 0 && comments.length === 0 && mentions.length === 0 && !showDone && (
         <div className="card"><p className="muted">Nothing assigned to you right now. 🎉</p></div>
       )}
 
