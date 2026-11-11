@@ -209,3 +209,8 @@ button.react.on { border-color: var(--accent); background: var(--hover); }
 .tb-check input { width: auto; }
 .tb-spacer { flex: 1; }
 button.link { background: none; border: 0; color: var(--accent); padding: 4px; font-size: 13px; cursor: pointer; }
+.top-search { flex: 1; max-width: 360px; } .top-search input { width: 100%; padding: 6px 10px; font-size: 13px; }
+.status-chip { white-space: nowrap; }
+table.tasks td.muted a, table.tasks td a { color: var(--muted); text-decoration: none; white-space: nowrap; }
+table.tasks td a:hover { color: var(--accent); text-decoration: underline; }
+table.tasks td.muted.small { white-space: nowrap; }
