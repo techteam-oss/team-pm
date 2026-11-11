@@ -11,6 +11,7 @@ import MyTasks from './pages/MyTasks'
 import Dashboard from './pages/Dashboard'
 import Search from './pages/Search'
 import Archive from './pages/Archive'
+import Profile from './pages/Profile'
 import { TimerProvider } from './lib/time'
 
 function needsPassword() {
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/search" element={<Search />} />
           <Route path="/archive" element={<Archive />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="/members" element={<Members />} />
           <Route path="/list/:id" element={<ListPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

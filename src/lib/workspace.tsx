@@ -9,7 +9,7 @@ export type Workspace = { id: string; name: string }
 export type Space = { id: string; name: string; color: string; icon: string | null; is_private: boolean; position: number }
 export type List = { id: string; space_id: string; folder_id: string | null; name: string; position: number }
 export type Folder = { id: string; space_id: string; name: string; position: number }
-export type Person = { id: string; name: string; email: string | null; role: Role }
+export type Person = { id: string; name: string; email: string | null; role: Role; avatar_url: string | null }
 
 type State = {
   loading: boolean
@@ -50,10 +50,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       supabase.from('folders').select('id, space_id, name, position').eq('workspace_id', workspace.id).order('position').order('created_at'),
     ])
     const ids = (members ?? []).map(m => m.user_id)
-    const { data: profiles } = await supabase.from('profiles').select('id, full_name, email').in('id', ids)
+    const { data: profiles } = await supabase.from('profiles').select('id, full_name, email, avatar_url').in('id', ids)
     const people: Person[] = (members ?? []).map(m => {
       const p = profiles?.find(x => x.id === m.user_id)
-      return { id: m.user_id, name: p?.full_name || p?.email || 'Unknown', email: p?.email ?? null, role: m.role as Role }
+      return { id: m.user_id, name: p?.full_name || p?.email || 'Unknown', email: p?.email ?? null, role: m.role as Role, avatar_url: p?.avatar_url ?? null }
     }).sort((a, b) => a.name.localeCompare(b.name))
     const me = members?.find(m => m.user_id === userId)
     set({
@@ -76,6 +76,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   return <Ctx.Provider value={{ ...s, refresh, level }}>{children}</Ctx.Provider>
 }
+
+/** Like useWorkspace, but returns null outside the provider (for shared components). */
+export function useWorkspaceMaybe() { return useContext(Ctx) }
 
 export function useWorkspace() {
   const v = useContext(Ctx)

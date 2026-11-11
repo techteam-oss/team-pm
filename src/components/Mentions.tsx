@@ -72,7 +72,7 @@ export function MentionTextarea({ value, onChange, people, placeholder, rows = 3
         <ul className="mention-menu" role="listbox">
           {matches.map((p, i) => (
             <li key={p.id} role="option" aria-selected={i === active} className={i === active ? 'on' : ''} onMouseDown={e => { e.preventDefault(); pick(p) }}>
-              <Avatar name={p.name} size={20} /> {p.name} <span className="muted small">{p.email}</span>
+              <Avatar name={p.name} id={p.id} size={20} /> {p.name} <span className="muted small">{p.email}</span>
             </li>
           ))}
         </ul>

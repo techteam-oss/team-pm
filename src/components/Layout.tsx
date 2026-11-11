@@ -5,13 +5,14 @@ import { useAuth } from '../lib/auth'
 import { isAdmin, useWorkspace } from '../lib/workspace'
 import ThemeSwitch from './ThemeSwitch'
 import Menu from './Menu'
+import Avatar from './Avatar'
 import SpaceSettings from './SpaceSettings'
 import type { List } from '../lib/workspace'
 import { fmtClock, useNow, useTimer } from '../lib/time'
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { session } = useAuth()
-  const { workspace, role, spaces, lists, folders, level, refresh } = useWorkspace()
+  const { workspace, role, spaces, lists, folders, people, level, refresh } = useWorkspace()
   const [settingsFor, setSettingsFor] = useState<string | null>(null)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const admin = isAdmin(role)
@@ -164,7 +165,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           <form className="top-search" onSubmit={e => { e.preventDefault(); const q = new FormData(e.currentTarget).get('q')?.toString().trim(); if (q) navigate(`/search?q=${encodeURIComponent(q)}`) }}>
             <input name="q" type="search" placeholder="Search…  (press /)" aria-label="Search" />
           </form>
-          <div className="muted">{session!.user.email}{role && <span className="pill" style={{ marginLeft: 8 }}>{role}</span>}</div>
+          <Link to="/profile" className="me-link" title="Your profile"><Avatar name={people.find(p => p.id === session!.user.id)?.name ?? session!.user.email ?? '?'} id={session!.user.id} size={26} /><span className="muted">{session!.user.email}</span>{role && <span className="pill">{role}</span>}</Link>
           <div className="row">
             {running && (
               <span className="timer-chip">
