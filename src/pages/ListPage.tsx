@@ -6,6 +6,9 @@ import Avatar from '../components/Avatar'
 import TaskPanel from '../components/TaskPanel'
 import MindMap from '../components/MindMap'
 import CalendarView from '../components/CalendarView'
+import ListToolbar from '../components/ListToolbar'
+import { useAuth } from '../lib/auth'
+import { applyFilters, groupTasks, useListFilters } from '../lib/filters'
 
 export default function ListPage() {
   const { id } = useParams()
@@ -15,6 +18,10 @@ export default function ListPage() {
   const space = spaces.find(s => s.id === list?.space_id)
   const canEdit = list ? level(list.space_id) >= 3 : false
   const { statuses, tasks, update, create, load } = useListData(id)
+  const { session } = useAuth()
+  const [f, setF, clearF] = useListFilters(id)
+  const shown = applyFilters(tasks, f, session!.user.id, statuses)
+  const doneIds = new Set(statuses.filter(s => s.is_done).map(s => s.id))
   const v = params.get('view')
   const view = v === 'board' || v === 'map' || v === 'calendar' ? v : 'list'
   const openTask = params.get('task')
@@ -54,6 +61,22 @@ export default function ListPage() {
 
   const person = (uid: string) => people.find(p => p.id === uid)
 
+  const row = (t: Task) => (
+    <tr key={t.id} className="task-row" onClick={() => setParam('task', t.id)}>
+                    <td className="muted small num">#{t.number}</td>
+                    <td className="title">{t.title} <span className="row-meta">{t.subtasks > 0 && <span className="meta">☑ {t.subtasks_done}/{t.subtasks}</span>}</span></td>
+                    <td className="avatars-cell"><span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} name={person(a)!.name} size={22} />)}</span></td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <select disabled={!canEdit} value={t.priority} onChange={e => update(t.id, { priority: e.target.value })} className={`prio-${t.priority}`}>
+                        {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <input type="date" className={isOverdue(t.due_date) && !(t.status_id && doneIds.has(t.status_id)) ? 'overdue' : ''} disabled={!canEdit} value={t.due_date ?? ''} onChange={e => update(t.id, { due_date: e.target.value || null })} />
+                    </td>
+                  </tr>
+  )
+
   if (!list) return <p className="muted">List not found, or you don't have access to it.</p>
 
   const meta = (t: Task) => (
@@ -83,32 +106,28 @@ export default function ListPage() {
         </div>
       </div>
 
+      {view !== 'map' && (
+        <ListToolbar f={f} set={setF} clear={clearF} people={people} showGroup={view === 'list'} showSort={view !== 'calendar'} />
+      )}
+      {view === 'list' && tasks.length > 0 && shown.length === 0 && <p className="muted">No tasks match these filters.</p>}
+
       {view === 'calendar' ? (
-        <CalendarView tasks={tasks} statuses={statuses} canEdit={canEdit} onOpen={tid => setParam('task', tid)} onMove={(tid, due) => update(tid, { due_date: due })} />
+        <CalendarView tasks={shown} statuses={statuses} canEdit={canEdit} onOpen={tid => setParam('task', tid)} onMove={(tid, due) => update(tid, { due_date: due })} />
       ) : view === 'map' ? (
         <MindMap listId={list.id} listName={list.name} statuses={statuses} canEdit={canEdit} onOpen={tid => setParam('task', tid)} />
-      ) : view === 'list' ? statuses.map(st => {
-        const rows = tasks.filter(t => t.status_id === st.id)
+      ) : view === 'list' && f.group !== 'status' ? groupTasks(shown, f.group, uid => person(uid)?.name ?? 'Former member').map(g => (
+        <div key={g.key} className="group">
+          <div className="group-head"><b>{g.label}</b><span className="muted small">{g.tasks.length}</span></div>
+          <table className="grid tasks"><tbody>{g.tasks.map(row)}</tbody></table>
+        </div>
+      )) : view === 'list' ? statuses.filter(st => !(f.hideDone && st.is_done)).map(st => {
+        const rows = shown.filter(t => t.status_id === st.id)
         return (
           <div key={st.id} className="group">
             <div className="group-head"><span className="status-chip" style={{ background: st.color }}>{st.name}</span><span className="muted small">{rows.length}</span></div>
             <table className="grid tasks">
               <tbody>
-                {rows.map(t => (
-                  <tr key={t.id} className="task-row" onClick={() => setParam('task', t.id)}>
-                    <td className="muted small num">#{t.number}</td>
-                    <td className="title">{t.title} <span className="row-meta">{t.subtasks > 0 && <span className="meta">☑ {t.subtasks_done}/{t.subtasks}</span>}</span></td>
-                    <td className="avatars-cell"><span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} name={person(a)!.name} size={22} />)}</span></td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <select disabled={!canEdit} value={t.priority} onChange={e => update(t.id, { priority: e.target.value })} className={`prio-${t.priority}`}>
-                        {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                      </select>
-                    </td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <input type="date" className={isOverdue(t.due_date) && !st.is_done ? 'overdue' : ''} disabled={!canEdit} value={t.due_date ?? ''} onChange={e => update(t.id, { due_date: e.target.value || null })} />
-                    </td>
-                  </tr>
-                ))}
+                {rows.map(row)}
               </tbody>
             </table>
             {canEdit && (
@@ -120,8 +139,8 @@ export default function ListPage() {
         )
       }) : (
         <div className="board">
-          {statuses.map(st => {
-            const col = tasks.filter(t => t.status_id === st.id)
+          {statuses.filter(st => !(f.hideDone && st.is_done)).map(st => {
+            const col = shown.filter(t => t.status_id === st.id)
             return (
               <div key={st.id} className={`column ${overCol === st.id ? 'over' : ''}`}
                 onDragOver={e => { if (canEdit) { e.preventDefault(); setOverCol(st.id) } }}
