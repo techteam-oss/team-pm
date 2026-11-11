@@ -23,8 +23,8 @@ export default function Search() {
     const t = setTimeout(async () => {
       const like = `%${term.replace(/[%_\\]/g, m => '\\' + m)}%`
       const num = /^#?\d+$/.test(term) ? Number(term.replace('#', '')) : null
-      let tq = supabase.from('tasks').select('id, number, title, list_id, space_id, due_date, parent_task_id, status:statuses(name, color, is_done)')
-        .eq('workspace_id', workspace.id).eq('archived', false).limit(50)
+      let tq = supabase.from('tasks').select('id, number, title, list_id, space_id, due_date, parent_task_id, status:statuses(name, color, is_done), list:lists!inner(archived)')
+        .eq('workspace_id', workspace.id).eq('archived', false).eq('list.archived', false).limit(50)
       tq = num != null ? tq.or(`number.eq.${num},title.ilike.${JSON.stringify(like)}`) : tq.ilike('title', like)
       const [a, b] = await Promise.all([
         tq,

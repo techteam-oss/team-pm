@@ -37,8 +37,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!workspace) return
-    let tq = supabase.from('tasks').select('id, space_id, due_date, completed_at, status:statuses(is_done), task_assignees(user_id)')
-      .eq('workspace_id', workspace.id).eq('archived', false).limit(5000)
+    let tq = supabase.from('tasks').select('id, space_id, due_date, completed_at, status:statuses(is_done), task_assignees(user_id), list:lists!inner(archived)')
+      .eq('workspace_id', workspace.id).eq('archived', false).eq('list.archived', false).limit(5000)
     let eq = supabase.from('time_entries').select('user_id, space_id, started_at, ended_at').gte('started_at', weekStart().toISOString()).limit(5000)
     if (space) { tq = tq.eq('space_id', space); eq = eq.eq('space_id', space) }
     Promise.all([tq, eq]).then(([a, b]) => {
