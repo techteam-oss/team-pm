@@ -478,3 +478,25 @@ tr.sub-row .t { font-weight: 400; }
 .card-subs li { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
 .card-subs li:hover { background: var(--hover); }
 .card-subs .status-dot { width: 10px; height: 10px; }
+
+/* Create-task dialog */
+.modal.create-task { width: min(720px, 100%); gap: 12px; padding: 16px 20px 18px; }
+.modal-backdrop:has(.create-task) { padding-top: 8vh; overflow-y: auto; }
+.ct-title { font-size: 20px; font-weight: 650; border: 0; padding: 4px 0; background: none; box-shadow: none !important; }
+.ct-desc { border-color: var(--border); background: var(--subtle); min-height: 70px; }
+.ct-props { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ct-people { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; align-items: start; }
+.ct-prop { display: flex; flex-direction: column; gap: 4px; font-weight: 500; min-width: 0; }
+.ct-prop > span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.ct-prop select, .ct-prop input { width: 100%; }
+.ct-prop .row select { width: auto; }
+.ct-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 2px; }
+@media (max-width: 640px) { .ct-props { grid-template-columns: 1fr 1fr; } .ct-people { grid-template-columns: 1fr; } }
+
+/* Visible "Add task" rows */
+.add-row { color: var(--muted); }
+.add-row input::placeholder, .add-task input::placeholder { color: var(--muted); opacity: 1; }
+.column .add-row { border-radius: 8px; padding: 0 8px; }
+.column .add-row:hover { background: var(--surface); box-shadow: var(--shadow-sm); }
+.add-row:focus-within { color: var(--text); }
+.view-tabs { scrollbar-width: none; } .view-tabs::-webkit-scrollbar { display: none; }

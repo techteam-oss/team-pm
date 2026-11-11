@@ -12,7 +12,7 @@ import { Bell, BellRing, Paperclip, X } from 'lucide-react'
 
 type Full = {
   id: string; number: number; list_id: string; title: string; description: string | null; status_id: string | null
-  priority: string; start_date: string | null; due_date: string | null; time_estimate_minutes: number | null
+  priority: string; start_date: string | null; due_date: string | null; time_estimate_minutes: number | null; reviewer_id: string | null
   tags: string[]; parent_task_id: string | null; created_by: string | null; created_at: string
   archived: boolean; deleted_at: string | null
 }
@@ -59,7 +59,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
 
   const load = useCallback(async () => {
     const { data: t } = await supabase.from('tasks')
-      .select('id, number, list_id, title, description, status_id, priority, start_date, due_date, time_estimate_minutes, tags, parent_task_id, created_by, created_at, archived, deleted_at')
+      .select('id, number, list_id, title, description, status_id, priority, start_date, due_date, time_estimate_minutes, reviewer_id, tags, parent_task_id, created_by, created_at, archived, deleted_at')
       .eq('id', taskId).maybeSingle()
     if (!t) { setMissing(true); return }
     setTask(t)
@@ -223,6 +223,12 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
             <input type="number" min="0" step="0.25" disabled={!canEdit} key={`est-${task.time_estimate_minutes}`}
               defaultValue={task.time_estimate_minutes != null ? task.time_estimate_minutes / 60 : ''}
               onBlur={e => { const v = e.target.value; const m = v === '' ? null : Math.round(Number(v) * 60); if (m !== task.time_estimate_minutes) patch({ time_estimate_minutes: m }) }} />
+          </label>
+          <label>QA / reviewer
+            <select disabled={!canEdit} value={task.reviewer_id ?? ''} onChange={e => patch({ reviewer_id: e.target.value || null })}>
+              <option value="">No reviewer</option>
+              {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </label>
           <label>Tags
             <input disabled={!canEdit} key={`tags-${task.tags.join(',')}`} defaultValue={task.tags.join(', ')} placeholder="design, client"

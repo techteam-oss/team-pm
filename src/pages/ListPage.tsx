@@ -10,6 +10,7 @@ import MindMap from '../components/MindMap'
 import CalendarView from '../components/CalendarView'
 import ListToolbar, { ViewOptions } from '../components/ListToolbar'
 import StatusEditor from '../components/StatusEditor'
+import CreateTask from '../components/CreateTask'
 import { useAuth } from '../lib/auth'
 import { applyFilters, groupTasks, useListFilters } from '../lib/filters'
 
@@ -33,6 +34,7 @@ export default function ListPage() {
   const [overCol, setOverCol] = useState<string | null>(null)
   const [editStatuses, setEditStatuses] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [creating, setCreating] = useState(false)
   const [openSubs, setOpenSubs] = useState<Record<string, boolean>>({})
   const toggle = (k: string) => setCollapsed(c => ({ ...c, [k]: !c[k] }))
   const statusOf = (t: Task) => statuses.find(s => s.id === t.status_id)
@@ -154,12 +156,7 @@ export default function ListPage() {
           <h1>{list.name}</h1>
           {!canEdit && <span className="pill"><Eye size={12} aria-hidden />View only</span>}
           {canEdit && view !== 'map' && statuses[0] && (
-            <button className="primary" onClick={() => {
-              const first = statuses.find(st => !st.is_done) ?? statuses[0]
-              if (view !== 'list' && view !== 'board') setParam('view', null)
-              setCollapsed(c => ({ ...c, [first.id]: false }))
-              requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[data-add="${first.id}"] input`)?.focus())
-            }}><Plus size={15} aria-hidden />Task</button>
+            <button className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden />Task</button>
           )}
         </div>
         <div className="view-tabs" role="tablist" aria-label="Views">
@@ -251,17 +248,18 @@ export default function ListPage() {
                     </div>
                   ))}
                 </div>
-                {canEdit && (
-                  <form className="add-task" onSubmit={e => add(e, st.id)}>
-                    <input placeholder="+ Add task" aria-label="New task name" value={draft[st.id] ?? ''} onChange={e => setDraft(d => ({ ...d, [st.id]: e.target.value }))} />
-                  </form>
-                )}
+                {addRow(st.id)}
               </div>
             )
           })}
         </div>
       )}
 
+      {creating && list && (
+        <CreateTask listId={list.id} listName={list.name} spaceId={list.space_id} statuses={statuses}
+          onClose={() => setCreating(false)}
+          onCreated={(tid, open) => { load(); if (open) { setCreating(false); setParam('task', tid) } }} />
+      )}
       {editStatuses && list && (
         <StatusEditor listId={list.id} statuses={statuses} tasks={tasks} onClose={() => setEditStatuses(false)} onChanged={load} />
       )}
