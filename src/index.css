@@ -219,3 +219,4 @@ table.tasks td.muted.small { white-space: nowrap; }
 .status-edit input[type=color] { width: 32px; height: 32px; padding: 2px; border-radius: 6px; flex-shrink: 0; }
 .status-edit input[aria-label="Status name"] { flex: 1; min-width: 0; }
 button.danger { color: #dc2626; }
+.banner { background: color-mix(in srgb, #f59e0b 15%, transparent); border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent); border-radius: 8px; padding: 8px 12px; font-size: 13px; }

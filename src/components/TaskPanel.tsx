@@ -10,6 +10,7 @@ type Full = {
   id: string; number: number; list_id: string; title: string; description: string | null; status_id: string | null
   priority: string; start_date: string | null; due_date: string | null; time_estimate_minutes: number | null
   tags: string[]; parent_task_id: string | null; created_by: string | null; created_at: string
+  archived: boolean; deleted_at: string | null
 }
 type Sub = { id: string; number: number; title: string; status_id: string | null }
 type Check = { id: string; title: string; done: boolean; position: number }
@@ -53,14 +54,14 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
 
   const load = useCallback(async () => {
     const { data: t } = await supabase.from('tasks')
-      .select('id, number, list_id, title, description, status_id, priority, start_date, due_date, time_estimate_minutes, tags, parent_task_id, created_by, created_at')
+      .select('id, number, list_id, title, description, status_id, priority, start_date, due_date, time_estimate_minutes, tags, parent_task_id, created_by, created_at, archived, deleted_at')
       .eq('id', taskId).maybeSingle()
     if (!t) { setMissing(true); return }
     setTask(t)
     const [a, w, s, c, cm, ac, f] = await Promise.all([
       supabase.from('task_assignees').select('user_id').eq('task_id', taskId),
       supabase.from('task_watchers').select('user_id').eq('task_id', taskId),
-      supabase.from('tasks').select('id, number, title, status_id').eq('parent_task_id', taskId).order('position').order('created_at'),
+      supabase.from('tasks').select('id, number, title, status_id').eq('parent_task_id', taskId).eq('archived', false).order('position').order('created_at'),
       supabase.from('checklist_items').select('id, title, done, position').eq('task_id', taskId).order('position').order('created_at'),
       supabase.from('comments').select('id, user_id, body, assigned_to, resolved, created_at, comment_reactions(user_id, emoji)').eq('task_id', taskId).order('created_at'),
       supabase.from('activity_log').select('id, user_id, action, details, created_at').eq('task_id', taskId).order('created_at'),
@@ -148,16 +149,21 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
     await supabase.storage.from('attachments').remove([a.storage_path])
     await run(supabase.from('attachments').delete().eq('id', a.id))
   }
-  async function deleteTask() {
-    if (!confirm('Delete this task and its subtasks?')) return
-    const { error } = await supabase.from('tasks').delete().eq('id', taskId)
-    if (error) alert(error.message); else { onChanged(); onClose() }
+  async function setArchive(fields: Partial<Full>, close: boolean) {
+    const { error } = await supabase.from('tasks').update(fields).eq('id', taskId)
+    if (error) { alert(error.message); return }
+    onChanged()
+    if (close) onClose(); else load()
   }
+  const trashTask = () => confirm('Move this task and its subtasks to the trash? You can restore it from Archive.') && setArchive({ deleted_at: new Date().toISOString() }, true)
 
   const describe = (a: Activity) => {
     const d = a.details as Record<string, string | null>
     switch (a.action) {
       case 'created': return 'created this task'
+      case 'archived': return 'archived this task'
+      case 'trashed': return 'moved this task to the trash'
+      case 'restored': return 'restored this task'
       case 'status': return `changed status from ${d.from ?? 'none'} to ${d.to ?? 'none'}`
       case 'priority': return `changed priority from ${d.from} to ${d.to}`
       case 'due_date': return d.to ? `set the due date to ${d.to}` : 'removed the due date'
@@ -175,6 +181,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
   return (
     <div className="panel-backdrop" onClick={onClose}>
       <aside className="panel" onClick={e => e.stopPropagation()} aria-label="Task details">
+        {task.archived && <div className="banner">{task.deleted_at ? `In the trash since ${new Date(task.deleted_at).toLocaleDateString()}.` : 'This task is archived.'} It is hidden from lists and boards.</div>}
         <div className="panel-top">
           <span className="muted small">#{task.number}{task.parent_task_id && <> · <button className="link" onClick={() => onOpen(task.parent_task_id!)}>parent task</button></>}</span>
           <div className="row">
@@ -183,7 +190,9 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
               : supabase.from('task_watchers').insert({ task_id: taskId }))}>
               {watching ? '👁 Watching' : '👁 Watch'} · {watchers.length}
             </button>
-            {(lvl >= 4 || (canEdit && task.created_by === me)) && <button className="danger-link" onClick={deleteTask}>Delete</button>}
+            {canEdit && !task.archived && <button onClick={() => setArchive({ archived: true }, true)} title="Hide from views, keep everything">Archive</button>}
+            {canEdit && task.archived && <button onClick={() => setArchive({ archived: false }, false)}>Restore</button>}
+            {!task.deleted_at && (lvl >= 4 || (canEdit && task.created_by === me)) && <button className="danger-link" onClick={trashTask}>Delete</button>}
             <button onClick={onClose} aria-label="Close">✕</button>
           </div>
         </div>
