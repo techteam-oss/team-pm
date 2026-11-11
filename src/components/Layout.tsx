@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { isAdmin, useWorkspace } from '../lib/workspace'
@@ -12,6 +12,17 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const admin = isAdmin(role)
   const { running, stop } = useTimer()
+  const navigate = useNavigate()
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || el.closest('input, textarea, select, [contenteditable]')) return
+      e.preventDefault()
+      document.querySelector<HTMLInputElement>('.top-search input')?.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   const now = useNow(!!running)
 
   async function addSpace() {
@@ -69,6 +80,9 @@ export default function Layout({ children }: { children: ReactNode }) {
       </aside>
       <main className="main">
         <header className="topbar">
+          <form className="top-search" onSubmit={e => { e.preventDefault(); const q = new FormData(e.currentTarget).get('q')?.toString().trim(); if (q) navigate(`/search?q=${encodeURIComponent(q)}`) }}>
+            <input name="q" type="search" placeholder="Search…  (press /)" aria-label="Search" />
+          </form>
           <div className="muted">{session!.user.email}{role && <span className="pill" style={{ marginLeft: 8 }}>{role}</span>}</div>
           <div className="row">
             {running && (
