@@ -5,6 +5,7 @@ import { fmtDate, isOverdue, PRIORITIES, useListData, type Task } from '../lib/l
 import Avatar from '../components/Avatar'
 import TaskPanel from '../components/TaskPanel'
 import MindMap from '../components/MindMap'
+import CalendarView from '../components/CalendarView'
 
 export default function ListPage() {
   const { id } = useParams()
@@ -15,7 +16,7 @@ export default function ListPage() {
   const canEdit = list ? level(list.space_id) >= 3 : false
   const { statuses, tasks, update, create, load } = useListData(id)
   const v = params.get('view')
-  const view = v === 'board' || v === 'map' ? v : 'list'
+  const view = v === 'board' || v === 'map' || v === 'calendar' ? v : 'list'
   const openTask = params.get('task')
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [dragging, setDragging] = useState<string | null>(null)
@@ -76,12 +77,15 @@ export default function ListPage() {
           <div className="segmented">
             <button className={view === 'list' ? 'on' : ''} onClick={() => setParam('view', null)}>☰ List</button>
             <button className={view === 'board' ? 'on' : ''} onClick={() => setParam('view', 'board')}>▦ Board</button>
+            <button className={view === 'calendar' ? 'on' : ''} onClick={() => setParam('view', 'calendar')}>▤ Calendar</button>
             <button className={view === 'map' ? 'on' : ''} onClick={() => setParam('view', 'map')}>✳ Mind map</button>
           </div>
         </div>
       </div>
 
-      {view === 'map' ? (
+      {view === 'calendar' ? (
+        <CalendarView tasks={tasks} statuses={statuses} canEdit={canEdit} onOpen={tid => setParam('task', tid)} onMove={(tid, due) => update(tid, { due_date: due })} />
+      ) : view === 'map' ? (
         <MindMap listId={list.id} listName={list.name} statuses={statuses} canEdit={canEdit} onOpen={tid => setParam('task', tid)} />
       ) : view === 'list' ? statuses.map(st => {
         const rows = tasks.filter(t => t.status_id === st.id)
