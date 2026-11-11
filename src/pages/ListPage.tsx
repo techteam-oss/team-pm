@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type FormEvent } from 'react'
+import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
 import { CalendarDays, ChevronRight, Flag, Inbox, LayoutGrid, List as ListIcon, ListChecks, Network, Plus, Settings2, Eye } from 'lucide-react'
 import { SpaceBadge } from '../components/Layout'
 import { useParams, useSearchParams } from 'react-router-dom'
@@ -33,6 +33,7 @@ export default function ListPage() {
   const [overCol, setOverCol] = useState<string | null>(null)
   const [editStatuses, setEditStatuses] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [openSubs, setOpenSubs] = useState<Record<string, boolean>>({})
   const toggle = (k: string) => setCollapsed(c => ({ ...c, [k]: !c[k] }))
   const statusOf = (t: Task) => statuses.find(s => s.id === t.status_id)
 
@@ -68,15 +69,27 @@ export default function ListPage() {
 
   const person = (uid: string) => people.find(p => p.id === uid)
 
-  const row = (t: Task) => {
+  const row = (t: Task, depth = 0): ReactNode[] => {
     const st = statusOf(t)
-    return (
-      <tr key={t.id} className="task-row" onClick={() => setParam('task', t.id)}>
+    const expanded = !!openSubs[t.id]
+    const out: ReactNode[] = [(
+      <tr key={t.id} className={`task-row ${depth ? 'sub-row' : ''}`} onClick={() => setParam('task', t.id)}>
         <td className="title">
-          <div className="title-cell">
+          <div className="title-cell" style={depth ? { paddingLeft: 28 * depth } : undefined}>
+            {t.subs.length > 0 ? (
+              <button className="icon-btn sub-toggle" aria-expanded={expanded} aria-label={`${expanded ? 'Hide' : 'Show'} ${t.subs.length} subtasks of ${t.title}`}
+                onClick={e => { e.stopPropagation(); setOpenSubs(o => ({ ...o, [t.id]: !expanded })) }}>
+                <ChevronRight size={14} className={`chev ${expanded ? 'open' : ''}`} />
+              </button>
+            ) : <span className="sub-toggle-space" aria-hidden />}
             <span className={`status-dot ${st?.is_done ? 'done' : ''}`} style={{ color: st?.color ?? 'var(--faint)' }} title={st?.name} aria-hidden />
             <span className="t">{t.title}</span>
-            {t.subtasks > 0 && <span className="meta" title="Subtasks done"><ListChecks size={13} aria-hidden />{t.subtasks_done}/{t.subtasks}</span>}
+            {t.subtasks > 0 && (
+              <button className="sub-count" title={expanded ? 'Hide subtasks' : 'Show subtasks'} disabled={!t.subs.length}
+                onClick={e => { e.stopPropagation(); setOpenSubs(o => ({ ...o, [t.id]: !expanded })) }}>
+                <ListChecks size={13} aria-hidden />{t.subtasks_done}/{t.subtasks}
+              </button>
+            )}
             <span className="tasknum">#{t.number}</span>
           </div>
         </td>
@@ -94,7 +107,9 @@ export default function ListPage() {
           </span>
         </td>
       </tr>
-    )
+    )]
+    if (expanded) for (const c of t.subs) out.push(...row(c, depth + 1))
+    return out
   }
   const thead = (
     <thead><tr><th>Name</th><th>Assignee</th><th>Due date</th><th>Priority</th></tr></thead>
@@ -112,7 +127,12 @@ export default function ListPage() {
     <>
       {t.priority !== 'normal' && <span className={`meta prio-${t.priority}`}><Flag size={12} fill={t.priority === 'low' ? 'none' : 'currentColor'} aria-hidden />{t.priority[0].toUpperCase() + t.priority.slice(1)}</span>}
       {t.due_date && <span className={`meta ${isOverdue(t.due_date) && !(t.status_id && doneIds.has(t.status_id)) ? 'overdue' : ''}`}><CalendarDays size={12} aria-hidden />{fmtDate(t.due_date)}</span>}
-      {t.subtasks > 0 && <span className="meta"><ListChecks size={12} aria-hidden />{t.subtasks_done}/{t.subtasks}</span>}
+      {t.subtasks > 0 && (
+        <button className="sub-count" title={openSubs[t.id] ? 'Hide subtasks' : 'Show subtasks'} aria-expanded={!!openSubs[t.id]}
+          onClick={e => { e.stopPropagation(); setOpenSubs(o => ({ ...o, [t.id]: !o[t.id] })) }}>
+          <ListChecks size={12} aria-hidden />{t.subtasks_done}/{t.subtasks}
+        </button>
+      )}
       <span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} id={a} name={person(a)!.name} size={22} />)}</span>
     </>
   )
@@ -171,7 +191,7 @@ export default function ListPage() {
             <button className="icon-btn group-toggle" aria-expanded={!collapsed[g.key]} aria-label={`Toggle ${g.label}`} onClick={() => toggle(g.key)}><ChevronRight size={14} className={`chev ${collapsed[g.key] ? '' : 'open'}`} /></button>
             <b>{g.label}</b><span className="count">{g.tasks.length}</span>
           </div>
-          {!collapsed[g.key] && <div className="group-body"><table className="tasks">{thead}<tbody>{g.tasks.map(row)}</tbody></table></div>}
+          {!collapsed[g.key] && <div className="group-body"><table className="tasks">{thead}<tbody>{g.tasks.flatMap(t => row(t))}</tbody></table></div>}
         </div>
       )) : view === 'list' ? statuses.filter(st => !(f.hideDone && st.is_done)).map(st => {
         const rows = shown.filter(t => t.status_id === st.id)
@@ -185,7 +205,7 @@ export default function ListPage() {
               <div className="group-body" data-add={st.id}>
                 <table className="tasks">
                   {rows.length > 0 && thead}
-                  <tbody>{rows.map(row)}</tbody>
+                  <tbody>{rows.flatMap(t => row(t))}</tbody>
                 </table>
                 {addRow(st.id)}
               </div>
@@ -215,6 +235,19 @@ export default function ListPage() {
                       onClick={() => setParam('task', t.id)}>
                       <div className="card-title">{t.title}</div>
                       <div className="card-meta"><span className="tasknum">#{t.number}</span>{meta(t)}</div>
+                      {openSubs[t.id] && t.subs.length > 0 && (
+                        <ul className="card-subs">
+                          {t.subs.map(c => {
+                            const cs = statusOf(c)
+                            return (
+                              <li key={c.id} onClick={e => { e.stopPropagation(); setParam('task', c.id) }}>
+                                <span className={`status-dot ${cs?.is_done ? 'done' : ''}`} style={{ color: cs?.color ?? 'var(--faint)' }} aria-hidden />
+                                <span className={cs?.is_done ? 'struck' : ''}>{c.title}</span>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
                     </div>
                   ))}
                 </div>
