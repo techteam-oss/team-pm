@@ -231,7 +231,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
           <h4>Assignees</h4>
           <div className="row">
             {assignees.map(uid => (
-              <span key={uid} className="chip"><Avatar name={name(uid)} size={20} /> {name(uid)}
+              <span key={uid} className="chip"><Avatar name={name(uid)} id={uid} size={20} /> {name(uid)}
                 {canEdit && <button className="icon" onClick={() => run(supabase.from('task_assignees').delete().eq('task_id', taskId).eq('user_id', uid))}>×</button>}
               </span>
             ))}
@@ -304,7 +304,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
             ) : (
               <div key={item.c.id} className={`comment ${item.c.assigned_to && !item.c.resolved ? 'assigned' : ''}`}>
                 <div className="comment-head">
-                  <Avatar name={name(item.c.user_id)} size={22} /><b>{name(item.c.user_id)}</b>
+                  <Avatar name={name(item.c.user_id)} id={item.c.user_id} size={22} /><b>{name(item.c.user_id)}</b>
                   <span className="muted small">{ago(item.c.created_at)}</span>
                   {item.c.assigned_to && (
                     <span className="pill">{item.c.resolved ? '✓ resolved' : `assigned to ${name(item.c.assigned_to)}`}</span>

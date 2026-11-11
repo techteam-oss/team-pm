@@ -67,7 +67,7 @@ export default function ListPage() {
     <tr key={t.id} className="task-row" onClick={() => setParam('task', t.id)}>
                     <td className="muted small num">#{t.number}</td>
                     <td className="title">{t.title} <span className="row-meta">{t.subtasks > 0 && <span className="meta">☑ {t.subtasks_done}/{t.subtasks}</span>}</span></td>
-                    <td className="avatars-cell"><span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} name={person(a)!.name} size={22} />)}</span></td>
+                    <td className="avatars-cell"><span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} id={a} name={person(a)!.name} size={22} />)}</span></td>
                     <td onClick={e => e.stopPropagation()}>
                       <select disabled={!canEdit} value={t.priority} onChange={e => update(t.id, { priority: e.target.value })} className={`prio-${t.priority}`}>
                         {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
@@ -86,7 +86,7 @@ export default function ListPage() {
       {t.subtasks > 0 && <span className="meta">☑ {t.subtasks_done}/{t.subtasks}</span>}
       {t.due_date && <span className={`meta ${isOverdue(t.due_date) ? 'overdue' : ''}`}>📅 {fmtDate(t.due_date)}</span>}
       {t.priority !== 'normal' && <span className={`meta prio-${t.priority}`}>⚑ {t.priority}</span>}
-      <span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} name={person(a)!.name} size={20} />)}</span>
+      <span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} id={a} name={person(a)!.name} size={20} />)}</span>
     </>
   )
 
