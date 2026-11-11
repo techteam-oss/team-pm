@@ -43,8 +43,8 @@ export default function MyTasks() {
     const since = new Date(Date.now() - 14 * 86400000).toISOString()
     const [{ data: tk }, { data: cm }, { data: mn }] = await Promise.all([
       supabase.from('tasks')
-        .select('id, number, title, priority, due_date, list_id, space_id, status:statuses(name, color, is_done), task_assignees!inner(user_id)')
-        .eq('task_assignees.user_id', uid).eq('archived', false).order('due_date', { nullsFirst: false }).limit(500),
+        .select('id, number, title, priority, due_date, list_id, space_id, status:statuses(name, color, is_done), task_assignees!inner(user_id), list:lists!inner(archived)')
+        .eq('task_assignees.user_id', uid).eq('archived', false).eq('list.archived', false).order('due_date', { nullsFirst: false }).limit(500),
       supabase.from('comments')
         .select('id, body, task_id, space_id, created_at, task:tasks(title, number, list_id)')
         .eq('assigned_to', uid).eq('resolved', false).order('created_at', { ascending: false }).limit(100),
