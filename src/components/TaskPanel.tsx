@@ -5,6 +5,7 @@ import { useWorkspace } from '../lib/workspace'
 import { PRIORITIES, type Status } from '../lib/listData'
 import Avatar from './Avatar'
 import TimeSection from './TimeSection'
+import { encodeMentions, MentionTextarea, renderMentions, type MentionPerson } from './Mentions'
 
 type Full = {
   id: string; number: number; list_id: string; title: string; description: string | null; status_id: string | null
@@ -48,6 +49,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
   const [newSub, setNewSub] = useState('')
   const [newCheck, setNewCheck] = useState('')
   const [body, setBody] = useState('')
+  const [picked, setPicked] = useState<MentionPerson[]>([])
   const [assignTo, setAssignTo] = useState('')
   const [uploading, setUploading] = useState(false)
   const [missing, setMissing] = useState(false)
@@ -122,8 +124,8 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
   async function postComment(e: FormEvent) {
     e.preventDefault()
     if (!body.trim()) return
-    await run(supabase.from('comments').insert({ task_id: taskId, body: body.trim(), assigned_to: assignTo || null }))
-    setBody(''); setAssignTo('')
+    await run(supabase.from('comments').insert({ task_id: taskId, body: encodeMentions(body.trim(), picked), assigned_to: assignTo || null }))
+    setBody(''); setAssignTo(''); setPicked([])
   }
   async function react(c: Comment, emoji: string) {
     const mine = c.comment_reactions.some(r => r.user_id === me && r.emoji === emoji)
@@ -308,7 +310,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
                     <span className="pill">{item.c.resolved ? '✓ resolved' : `assigned to ${name(item.c.assigned_to)}`}</span>
                   )}
                 </div>
-                <div className="pre">{item.c.body}</div>
+                <div className="pre">{renderMentions(item.c.body, me)}</div>
                 <div className="row reactions">
                   {EMOJIS.map(em => {
                     const n = item.c.comment_reactions.filter(r => r.emoji === em).length
@@ -327,7 +329,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
           </div>
           {canComment && (
             <form className="comment-box" onSubmit={postComment}>
-              <textarea rows={3} placeholder="Write a comment…" value={body} onChange={e => setBody(e.target.value)} />
+              <MentionTextarea placeholder="Write a comment… type @ to mention someone" value={body} onChange={setBody} people={people} onPick={p => setPicked(x => x.some(y => y.id === p.id) ? x : [...x, p])} />
               <div className="row">
                 <select value={assignTo} onChange={e => setAssignTo(e.target.value)}>
                   <option value="">Not assigned</option>
