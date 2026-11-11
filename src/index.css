@@ -1,6 +1,6 @@
 /* ===== Design tokens ===== */
 :root, :root[data-theme='light'] {
-  --bg: #ffffff; --surface: #ffffff; --sidebar: #f7f7f9; --subtle: #f4f4f6; --border: #e6e6eb; --border-strong: #d4d4db;
+  --bg: #ffffff; --surface: #ffffff; --sidebar: #f7f7f9; --subtle: #f4f4f6; --border: #dddfe5; --border-strong: #c3c6cf; --border-control: #c9ccd4;
   --text: #1c1d21; --muted: #5f6370; --faint: #8b8f9a;
   --accent: #6e56cf; --accent-text: #ffffff; --accent-fg: #5b45bd; --accent-soft: #efecfb; --accent-hover: #5f48c0;
   --danger: #d1343e; --ok: #16834a; --warn: #b4580b; --hover: #efeff2; --active: #e9e6fa;
@@ -9,7 +9,7 @@
   --scrim: rgba(16,17,20,.4); color-scheme: light;
 }
 :root[data-theme='dark'] {
-  --bg: #17181c; --surface: #1e2025; --sidebar: #131417; --subtle: #22242a; --border: #2c2f36; --border-strong: #3a3e47;
+  --bg: #17181c; --surface: #1e2025; --sidebar: #131417; --subtle: #22242a; --border: #373b44; --border-strong: #4d525e; --border-control: #4a4f5b;
   --text: #ecedef; --muted: #a3a7b1; --faint: #7d818c;
   --accent: #6e56cf; --accent-text: #ffffff; --accent-fg: #b3a6ff; --accent-soft: #2a2545; --accent-hover: #7d66da;
   --danger: #ff6b72; --ok: #4cc38a; --warn: #f0a24b; --hover: #26282e; --active: #2d2848;
@@ -37,7 +37,7 @@ a { color: var(--accent-fg); }
 
 /* ===== Form controls ===== */
 label { display: flex; flex-direction: column; gap: 4px; font-weight: 500; }
-input, select, textarea { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+input, select, textarea { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border-control); border-radius: 8px; padding: 7px 10px;
   transition: border-color .12s, box-shadow .12s; }
 input:hover, select:hover, textarea:hover { border-color: var(--border-strong); }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
@@ -49,7 +49,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 15
 textarea { width: 100%; resize: vertical; }
 @media (max-width: 700px) { input, select, textarea { font-size: 16px; } }
 
-button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px;
+button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border-control); border-radius: 8px; padding: 6px 12px;
   cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; transition: background .12s, border-color .12s, color .12s; touch-action: manipulation; }
 button:hover { background: var(--hover); }
 button:disabled { opacity: .5; cursor: default; }
@@ -154,7 +154,7 @@ kbd { font: 11px/1 inherit; color: var(--muted); border: 1px solid var(--border)
 @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98) } }
 
 /* ===== Common bits ===== */
-.segmented { display: inline-flex; background: var(--subtle); border: 1px solid var(--border); border-radius: 8px; padding: 2px; gap: 2px; }
+.segmented { display: inline-flex; background: var(--subtle); border: 1px solid var(--border-control); border-radius: 8px; padding: 2px; gap: 2px; }
 .segmented button { border: 0; border-radius: 6px; padding: 4px 10px; background: none; color: var(--muted); font-size: 13px; }
 .segmented button:hover { color: var(--text); background: none; }
 .segmented button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
@@ -437,7 +437,7 @@ img.avatar { object-fit: cover; display: inline-block; padding: 0; }
 .rt-empty { width: 100%; text-align: left; color: var(--muted); background: var(--bg); border: 1px dashed var(--border); padding: 12px; }
 
 /* ===== Redesign extras ===== */
-a.btn-a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); text-decoration: none; font-weight: 500; }
+a.btn-a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border-control); border-radius: 8px; background: var(--surface); color: var(--text); text-decoration: none; font-weight: 500; }
 a.btn-a:hover { background: var(--hover); }
 .tile-label { display: flex; align-items: center; gap: 6px; font-weight: 500; }
 .step-n { width: 22px; height: 22px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-fg); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
