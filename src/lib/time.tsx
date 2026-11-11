@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from './supabase'
 import { useAuth } from './auth'
+import { notify } from '../components/Dialogs'
 
 export type Running = { id: string; task_id: string; started_at: string; task: { title: string; list_id: string } | null }
 type Ctx = { running: Running | null; start: (taskId: string) => Promise<void>; stop: () => Promise<void>; refresh: () => Promise<void> }
@@ -29,13 +30,13 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     if (!running) return
     const ended = new Date(Math.min(Date.now(), new Date(running.started_at).getTime() + 24 * 3600 * 1000)).toISOString()
     const { error } = await supabase.from('time_entries').update({ ended_at: ended }).eq('id', running.id)
-    if (error) alert(error.message)
+    if (error) notify(error.message)
     await refresh()
   }
   async function start(taskId: string) {
     if (running) await stop()
     const { error } = await supabase.from('time_entries').insert({ task_id: taskId })
-    if (error) alert(error.message)
+    if (error) notify(error.message)
     await refresh()
   }
   return <TimerCtx.Provider value={{ running, start, stop, refresh }}>{children}</TimerCtx.Provider>

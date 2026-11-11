@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtClock, fmtMinutes, parseDuration, useNow, useTimer } from '../lib/time'
+import { askConfirm, notify } from './Dialogs'
+import { Play, Square, Timer } from 'lucide-react'
 
 type Entry = { id: string; user_id: string; started_at: string; ended_at: string | null; note: string | null }
 
@@ -37,18 +39,18 @@ export default function TimeSection({ taskId, me, canEdit, canManage, estimate, 
   async function addManual(ev: FormEvent) {
     ev.preventDefault()
     const m = parseDuration(dur)
-    if (!m || m <= 0 || m > 24 * 60) { alert('Enter a duration like 1h 30m, 45m or 1:15 (max 24h).'); return }
+    if (!m || m <= 0 || m > 24 * 60) { notify('Enter a duration like 1h 30m, 45m or 1:15 (max 24h).'); return }
     const [y, mo, d] = day.split('-').map(Number)
     const startAt = new Date(y, mo - 1, d, 9, 0, 0)
     const { error } = await supabase.from('time_entries').insert({
       task_id: taskId, started_at: startAt.toISOString(), ended_at: new Date(startAt.getTime() + m * 60000).toISOString(), note: note.trim() || null,
     })
-    if (error) alert(error.message); else { setDur(''); setNote(''); setOpen(false); load() }
+    if (error) notify(error.message); else { setDur(''); setNote(''); setOpen(false); load() }
   }
   async function remove(id: string) {
-    if (!confirm('Delete this time entry?')) return
+    if (!await askConfirm({ title: 'Delete this time entry?', confirmLabel: 'Delete', danger: true })) return
     const { error } = await supabase.from('time_entries').delete().eq('id', id)
-    if (error) alert(error.message); else load()
+    if (error) notify(error.message); else load()
   }
 
   return (
@@ -58,8 +60,8 @@ export default function TimeSection({ taskId, me, canEdit, canManage, estimate, 
       {canEdit && (
         <div className="row">
           {mineHere
-            ? <button className="primary" onClick={stop}>■ Stop {fmtClock(now - new Date(running!.started_at).getTime())}</button>
-            : <button onClick={() => start(taskId)}>▶ Start timer</button>}
+            ? <button className="primary" onClick={stop}><Square size={12} fill="currentColor" aria-hidden />Stop {fmtClock(now - new Date(running!.started_at).getTime())}</button>
+            : <button onClick={() => start(taskId)}><Play size={13} fill="currentColor" aria-hidden />Start timer</button>}
           <button onClick={() => setOpen(o => !o)}>+ Add time</button>
         </div>
       )}
@@ -77,7 +79,7 @@ export default function TimeSection({ taskId, me, canEdit, canManage, estimate, 
             <li key={e.id}>
               <span>{name(e.user_id)}</span>
               <span className="muted small">{new Date(e.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-              <span>{e.ended_at ? fmtMinutes(mins(e)) : <b>⏱ {fmtClock(now - new Date(e.started_at).getTime())}</b>}</span>
+              <span>{e.ended_at ? fmtMinutes(mins(e)) : <b><Timer size={13} aria-hidden /> {fmtClock(now - new Date(e.started_at).getTime())}</b>}</span>
               <span className="muted small grow">{e.note}</span>
               {(e.user_id === me || canManage) && e.ended_at && <button className="icon" title="Delete" onClick={() => remove(e.id)}>×</button>}
             </li>

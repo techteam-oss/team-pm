@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { isAdmin, useWorkspace, type Access, type Role } from '../lib/workspace'
+import { askConfirm, notify } from '../components/Dialogs'
+import { Lock } from 'lucide-react'
 
 type Row = { user_id: string; role: Role; full_name: string | null; email: string | null; spaces: Record<string, Access> }
 const ACCESS: Access[] = ['view', 'comment', 'edit', 'full']
@@ -62,27 +64,28 @@ export default function Members() {
   async function changeRole(r: Row, newRole: Role) {
     const { error } = await supabase.from('workspace_members').update({ role: newRole })
       .eq('workspace_id', workspace!.id).eq('user_id', r.user_id)
-    if (error) alert(error.message); load()
+    if (error) notify(error.message); load()
   }
 
   async function changeSpace(r: Row, spaceId: string, access: Access | '') {
     const { error } = access
       ? await supabase.from('space_members').upsert({ space_id: spaceId, user_id: r.user_id, access })
       : await supabase.from('space_members').delete().eq('space_id', spaceId).eq('user_id', r.user_id)
-    if (error) alert(error.message); load()
+    if (error) notify(error.message); load()
   }
 
   async function remove(r: Row) {
-    if (!confirm(`Remove ${r.full_name ?? r.email} from the workspace? They lose access immediately.`)) return
+    if (!await askConfirm({ title: `Remove ${r.full_name ?? r.email}?`, body: 'They lose access to the workspace immediately.', confirmLabel: 'Remove', danger: true })) return
     await supabase.from('space_members').delete().eq('user_id', r.user_id).in('space_id', spaces.map(s => s.id))
     const { error } = await supabase.from('workspace_members').delete().eq('workspace_id', workspace!.id).eq('user_id', r.user_id)
-    if (error) alert(error.message); load()
+    if (error) notify(error.message); load()
   }
 
   const roleOptions: Role[] = ['admin', 'member', 'guest']
 
   return (
     <div className="stack">
+      <div className="page-title"><h1>Members</h1><p className="muted small">Invite people, set their role and choose which spaces they can open.</p></div>
       <form className="card stack" onSubmit={invite}>
         <h2>Add a person</h2>
         <div className="grid2">
@@ -103,7 +106,7 @@ export default function Members() {
               <tbody>
                 {spaces.map(sp => (
                   <tr key={sp.id}>
-                    <td>{sp.name}{sp.is_private ? ' 🔒' : ''}</td>
+                    <td>{sp.name}{sp.is_private && <Lock size={12} className="lock" aria-label="Private" style={{ marginLeft: 6 }} />}</td>
                     <td>
                       <select value={grant[sp.id] ?? ''} onChange={e => setGrant(g => ({ ...g, [sp.id]: e.target.value as Access | '' }))}>
                         <option value="">{role === 'member' && !sp.is_private ? 'Default (edit)' : 'No access'}</option>

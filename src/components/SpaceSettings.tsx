@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Space } from '../lib/workspace'
+import { notify } from './Dialogs'
 
 const COLORS = ['#7b68ee', '#3b82f6', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#8b5cf6', '#64748b']
 const ICONS = ['', '📁', '🚀', '💼', '🎯', '📣', '💡', '🛠️', '💰', '🎨', '📊', '🧪', '🤝', '📅', '⭐']
@@ -17,13 +18,13 @@ export default function SpaceSettings({ space, isAdmin, onClose, onChanged }: { 
     setBusy(true)
     const { error } = await supabase.from('spaces').update({ name: name.trim() || space.name, color, icon: icon || null, is_private: isPrivate }).eq('id', space.id)
     setBusy(false)
-    if (error) alert(error.message); else { onChanged(); onClose() }
+    if (error) notify(error.message); else { onChanged(); onClose() }
   }
   async function remove() {
     setBusy(true)
     const { error } = await supabase.from('spaces').delete().eq('id', space.id)
     setBusy(false)
-    if (error) alert(error.message); else { onChanged(); onClose(); location.hash = '#/' }
+    if (error) notify(error.message); else { onChanged(); onClose(); location.hash = '#/' }
   }
 
   return (

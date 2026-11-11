@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useWorkspace } from '../lib/workspace'
 import { fmtMinutes } from '../lib/time'
@@ -89,7 +90,7 @@ export default function Dashboard() {
 
       <div className="tiles">
         <div className="tile"><div className="tile-label">Open tasks</div><div className="tile-value">{stats.open}</div></div>
-        <div className="tile"><div className="tile-label">Overdue</div><div className={`tile-value ${stats.overdue ? 'overdue' : ''}`}>{stats.overdue ? '⚠ ' : ''}{stats.overdue}</div></div>
+        <div className="tile"><div className="tile-label"><AlertTriangle size={13} aria-hidden /> Overdue</div><div className={`tile-value ${stats.overdue ? 'overdue' : ''}`}>{stats.overdue}</div></div>
         <div className="tile"><div className="tile-label">Done in last 7 days</div><div className="tile-value">{stats.doneWeek}</div></div>
         <div className="tile"><div className="tile-label">Time tracked this week</div><div className="tile-value">{fmtMinutes(stats.minutes)}</div></div>
       </div>
