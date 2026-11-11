@@ -7,6 +7,7 @@ import TaskPanel from '../components/TaskPanel'
 import MindMap from '../components/MindMap'
 import CalendarView from '../components/CalendarView'
 import ListToolbar from '../components/ListToolbar'
+import StatusEditor from '../components/StatusEditor'
 import { useAuth } from '../lib/auth'
 import { applyFilters, groupTasks, useListFilters } from '../lib/filters'
 
@@ -28,6 +29,7 @@ export default function ListPage() {
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [dragging, setDragging] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<string | null>(null)
+  const [editStatuses, setEditStatuses] = useState(false)
 
   const setParam = (k: string, v: string | null) => {
     const next = new URLSearchParams(params)
@@ -97,6 +99,7 @@ export default function ListPage() {
         </div>
         <div className="row">
           {!canEdit && <span className="pill">View only</span>}
+          {list && level(list.space_id) >= 4 && <button onClick={() => setEditStatuses(true)} title="Edit statuses">⚙ Statuses</button>}
           <div className="segmented">
             <button className={view === 'list' ? 'on' : ''} onClick={() => setParam('view', null)}>☰ List</button>
             <button className={view === 'board' ? 'on' : ''} onClick={() => setParam('view', 'board')}>▦ Board</button>
@@ -174,6 +177,9 @@ export default function ListPage() {
         </div>
       )}
 
+      {editStatuses && list && (
+        <StatusEditor listId={list.id} statuses={statuses} tasks={tasks} onClose={() => setEditStatuses(false)} onChanged={load} />
+      )}
       {openTask && list && (
         <TaskPanel taskId={openTask} spaceId={list.space_id} statuses={statuses}
           onClose={() => setParam('task', null)} onChanged={load} onOpen={tid => setParam('task', tid)} />
