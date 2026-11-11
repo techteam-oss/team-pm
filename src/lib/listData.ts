@@ -7,6 +7,8 @@ export type Task = {
   id: string; number: number; title: string; status_id: string | null; priority: string
   due_date: string | null; start_date: string | null; position: number; parent_task_id: string | null
   assignees: string[]; subtasks: number; subtasks_done: number
+  /** Direct subtasks, in position order (only filled on top-level tasks). */
+  subs: Task[]
 }
 export const PRIORITIES = ['urgent', 'high', 'normal', 'low'] as const
 
@@ -23,13 +25,15 @@ export function useListData(listId: string | undefined) {
     ])
     const statusList = st ?? []
     const done = new Set(statusList.filter(s => s.is_done).map(s => s.id))
-    const all = (tk ?? []) as (Omit<Task, 'assignees' | 'subtasks' | 'subtasks_done'> & { task_assignees: { user_id: string }[] })[]
+    const all = (tk ?? []) as (Omit<Task, 'assignees' | 'subtasks' | 'subtasks_done' | 'subs'> & { task_assignees: { user_id: string }[] })[]
+    const shape = ({ task_assignees, ...t }: (typeof all)[number]): Task => {
+      const kids = all.filter(s => s.parent_task_id === t.id)
+      return { ...t, assignees: task_assignees.map(a => a.user_id), subtasks: kids.length,
+        subtasks_done: kids.filter(s => s.status_id && done.has(s.status_id)).length,
+        subs: t.parent_task_id ? [] : kids.map(shape) }
+    }
     setStatuses(statusList)
-    setTasks(all.filter(t => !t.parent_task_id).map(({ task_assignees, ...t }) => {
-      const subs = all.filter(s => s.parent_task_id === t.id)
-      return { ...t, assignees: task_assignees.map(a => a.user_id), subtasks: subs.length,
-        subtasks_done: subs.filter(s => s.status_id && done.has(s.status_id)).length }
-    }))
+    setTasks(all.filter(t => !t.parent_task_id).map(shape))
   }, [listId])
 
   useEffect(() => {
@@ -43,7 +47,8 @@ export function useListData(listId: string | undefined) {
   }, [listId, load])
 
   async function update(id: string, patch: Partial<Task>) {
-    setTasks(ts => ts.map(t => t.id === id ? { ...t, ...patch } : t))
+    setTasks(ts => ts.map(t => t.id === id ? { ...t, ...patch }
+      : t.subs.some(s => s.id === id) ? { ...t, subs: t.subs.map(s => s.id === id ? { ...s, ...patch } : s) } : t))
     const { error } = await supabase.from('tasks').update(patch).eq('id', id)
     if (error) { notify(error.message); load() }
   }

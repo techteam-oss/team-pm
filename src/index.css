@@ -221,7 +221,7 @@ table.tasks td.title { width: 100%; }
 td.num, .tasknum { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 tr.task-row { cursor: pointer; transition: background .08s; }
 tr.task-row:hover { background: var(--hover); }
-.cell-ctl { border-color: transparent; background: transparent; padding: 4px 8px; font-size: 13px; border-radius: 6px; }
+.cell-ctl { border-color: transparent; background-color: transparent; background-repeat: no-repeat; padding: 4px 8px; font-size: 13px; border-radius: 6px; }
 select.cell-ctl { padding-right: 24px; background-position: right 6px center; background-image: none; }
 tr.task-row:hover .cell-ctl { border-color: var(--border); background-color: var(--surface); }
 tr.task-row:hover select.cell-ctl { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b8f9a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
@@ -466,3 +466,15 @@ tr.task-row:hover input.cell-ctl[type=date].empty:not(:focus) { color: var(--fai
   .toolbar select { flex: 1; }
   .list-title-row h1 { font-size: 20px; }
 }
+.sub-toggle { width: 20px; height: 20px; margin-left: -6px; }
+.sub-toggle-space { width: 14px; flex-shrink: 0; margin-left: -6px; }
+tr.sub-row td { background: color-mix(in srgb, var(--subtle) 55%, transparent); }
+tr.sub-row:hover td { background: var(--hover); }
+tr.sub-row .t { font-weight: 400; }
+.sub-count { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); border: 1px solid transparent; background: none; padding: 1px 6px; border-radius: 999px; font-weight: 500; }
+.sub-count:hover:not(:disabled) { border-color: var(--border-control); background: var(--surface); color: var(--text); }
+.sub-count:disabled { opacity: 1; cursor: pointer; }
+.card-subs { list-style: none; margin: 0; padding: 6px 0 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.card-subs li { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+.card-subs li:hover { background: var(--hover); }
+.card-subs .status-dot { width: 10px; height: 10px; }
