@@ -6,8 +6,9 @@ import { applyTheme, type Theme } from './theme'
 export type Role = 'owner' | 'admin' | 'member' | 'guest'
 export type Access = 'view' | 'comment' | 'edit' | 'full'
 export type Workspace = { id: string; name: string }
-export type Space = { id: string; name: string; color: string; is_private: boolean; position: number }
-export type List = { id: string; space_id: string; name: string; position: number }
+export type Space = { id: string; name: string; color: string; icon: string | null; is_private: boolean; position: number }
+export type List = { id: string; space_id: string; folder_id: string | null; name: string; position: number }
+export type Folder = { id: string; space_id: string; name: string; position: number }
 export type Person = { id: string; name: string; email: string | null; role: Role }
 
 type State = {
@@ -16,6 +17,7 @@ type State = {
   role: Role | null
   spaces: Space[]
   lists: List[]
+  folders: Folder[]
   myAccess: Record<string, Access>
   people: Person[]
   refresh: () => Promise<void>
@@ -29,7 +31,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth()
   const userId = session!.user.id
   const [s, set] = useState<Omit<State, 'refresh' | 'level'>>({
-    loading: true, workspace: null, role: null, spaces: [], lists: [], myAccess: {}, people: [],
+    loading: true, workspace: null, role: null, spaces: [], lists: [], folders: [], myAccess: {}, people: [],
   })
 
   const refresh = useCallback(async () => {
@@ -38,13 +40,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
     const { data: ws } = await supabase.from('workspaces').select('id, name').order('created_at').limit(1)
     const workspace = ws?.[0] ?? null
-    if (!workspace) { set({ loading: false, workspace: null, role: null, spaces: [], lists: [], myAccess: {}, people: [] }); return }
+    if (!workspace) { set({ loading: false, workspace: null, role: null, spaces: [], lists: [], folders: [], myAccess: {}, people: [] }); return }
 
-    const [{ data: members }, { data: spaces }, { data: lists }, { data: access }] = await Promise.all([
+    const [{ data: members }, { data: spaces }, { data: lists }, { data: access }, { data: folders }] = await Promise.all([
       supabase.from('workspace_members').select('user_id, role').eq('workspace_id', workspace.id),
-      supabase.from('spaces').select('id, name, color, is_private, position').eq('workspace_id', workspace.id).order('position').order('created_at'),
-      supabase.from('lists').select('id, space_id, name, position').eq('workspace_id', workspace.id).eq('archived', false).order('position').order('created_at'),
+      supabase.from('spaces').select('id, name, color, icon, is_private, position').eq('workspace_id', workspace.id).order('position').order('created_at'),
+      supabase.from('lists').select('id, space_id, folder_id, name, position').eq('workspace_id', workspace.id).eq('archived', false).order('position').order('created_at'),
       supabase.from('space_members').select('space_id, access').eq('user_id', userId),
+      supabase.from('folders').select('id, space_id, name, position').eq('workspace_id', workspace.id).order('position').order('created_at'),
     ])
     const ids = (members ?? []).map(m => m.user_id)
     const { data: profiles } = await supabase.from('profiles').select('id, full_name, email').in('id', ids)
@@ -56,7 +59,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     set({
       people,
       loading: false, workspace, role: (me?.role ?? null) as Role | null,
-      spaces: spaces ?? [], lists: lists ?? [],
+      spaces: spaces ?? [], lists: lists ?? [], folders: folders ?? [],
       myAccess: Object.fromEntries((access ?? []).map(a => [a.space_id, a.access as Access])),
     })
   }, [userId])

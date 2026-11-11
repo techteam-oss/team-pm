@@ -4,11 +4,15 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { isAdmin, useWorkspace } from '../lib/workspace'
 import ThemeSwitch from './ThemeSwitch'
+import Menu from './Menu'
+import SpaceSettings from './SpaceSettings'
+import type { List } from '../lib/workspace'
 import { fmtClock, useNow, useTimer } from '../lib/time'
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { session } = useAuth()
-  const { workspace, role, spaces, lists, level, refresh } = useWorkspace()
+  const { workspace, role, spaces, lists, folders, level, refresh } = useWorkspace()
+  const [settingsFor, setSettingsFor] = useState<string | null>(null)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const admin = isAdmin(role)
   const { running, stop } = useTimer()
@@ -33,12 +37,59 @@ export default function Layout({ children }: { children: ReactNode }) {
     if (error) alert(error.message); else refresh()
   }
 
-  async function addList(spaceId: string) {
+  async function run(p: PromiseLike<{ error: { message: string } | null }>) {
+    const { error } = await p
+    if (error) alert(error.message); else refresh()
+    return !error
+  }
+  async function addList(spaceId: string, folderId: string | null = null) {
     const name = prompt('List name')?.trim()
     if (!name) return
-    const { error } = await supabase.from('lists').insert({ space_id: spaceId, name })
-    if (error) alert(error.message); else { setOpen(o => ({ ...o, [spaceId]: true })); refresh() }
+    if (await run(supabase.from('lists').insert({ space_id: spaceId, folder_id: folderId, name }))) {
+      setOpen(o => ({ ...o, [spaceId]: true, ...(folderId ? { [folderId]: true } : {}) }))
+    }
   }
+  async function addFolder(spaceId: string) {
+    const name = prompt('Folder name')?.trim()
+    if (name && await run(supabase.from('folders').insert({ space_id: spaceId, name }))) setOpen(o => ({ ...o, [spaceId]: true }))
+  }
+  function renameList(l: List) {
+    const name = prompt('Rename list', l.name)?.trim()
+    if (name && name !== l.name) run(supabase.from('lists').update({ name }).eq('id', l.id))
+  }
+  function moveList(l: List) {
+    const options = folders.filter(f => f.space_id === l.space_id)
+    if (!options.length) { alert('This space has no folders yet. Create one from the space menu.'); return }
+    const pick = prompt(`Move "${l.name}" to which folder? Type a number:\n0. No folder\n${options.map((f, i) => `${i + 1}. ${f.name}`).join('\n')}`)
+    if (pick === null) return
+    const n = Number(pick)
+    if (!Number.isInteger(n) || n < 0 || n > options.length) return
+    run(supabase.from('lists').update({ folder_id: n === 0 ? null : options[n - 1].id }).eq('id', l.id))
+  }
+  function archiveList(l: List) {
+    if (confirm(`Archive the list "${l.name}"? It disappears from the sidebar; its tasks are kept.`)) run(supabase.from('lists').update({ archived: true }).eq('id', l.id))
+  }
+  async function deleteFolder(id: string, name: string) {
+    if (!confirm(`Delete the folder "${name}"? Its lists move up into the space, nothing is lost.`)) return
+    const moved = await supabase.from('lists').update({ folder_id: null }).eq('folder_id', id)
+    if (moved.error) { alert(moved.error.message); return }
+    run(supabase.from('folders').delete().eq('id', id))
+  }
+  function renameFolder(id: string, current: string) {
+    const name = prompt('Rename folder', current)?.trim()
+    if (name && name !== current) run(supabase.from('folders').update({ name }).eq('id', id))
+  }
+
+  const listLink = (l: List, full: boolean) => (
+    <div key={l.id} className="list-row">
+      <NavLink to={`/list/${l.id}`} className="list-link">{l.name}</NavLink>
+      {full && <Menu title="List options" items={[
+        { label: 'Rename', onClick: () => renameList(l) },
+        { label: 'Move to folder…', onClick: () => moveList(l) },
+        { label: 'Archive list', onClick: () => archiveList(l), danger: true },
+      ]} />}
+    </div>
+  )
 
   return (
     <div className="shell">
@@ -60,25 +111,54 @@ export default function Layout({ children }: { children: ReactNode }) {
             {spaces.length === 0 && <div className="nav-soon">{admin ? 'Create your first space with +' : 'No spaces shared with you yet'}</div>}
             {spaces.map(sp => {
               const isOpen = open[sp.id] ?? true
+              const full = level(sp.id) >= 4
+              const spaceLists = lists.filter(l => l.space_id === sp.id)
               return (
                 <div key={sp.id} className="space">
                   <div className="space-row">
                     <button className="space-toggle" onClick={() => setOpen(o => ({ ...o, [sp.id]: !isOpen }))}>
-                      <span className="dot" style={{ background: sp.color }} />
+                      {sp.icon ? <span className="space-icon">{sp.icon}</span> : <span className="dot" style={{ background: sp.color }} />}
                       <span className="space-name">{sp.name}</span>
                       {sp.is_private && <span className="lock" title="Private">🔒</span>}
                     </button>
-                    {level(sp.id) >= 4 && <button className="icon" title="New list" onClick={() => addList(sp.id)}>+</button>}
+                    {full && <Menu title="Space options" icon="+" items={[
+                      { label: 'New list', onClick: () => addList(sp.id) },
+                      { label: 'New folder', onClick: () => addFolder(sp.id) },
+                      { label: 'Space settings', onClick: () => setSettingsFor(sp.id) },
+                    ]} />}
                   </div>
-                  {isOpen && lists.filter(l => l.space_id === sp.id).map(l => (
-                    <NavLink key={l.id} to={`/list/${l.id}`} className="list-link">{l.name}</NavLink>
-                  ))}
+                  {isOpen && (
+                    <>
+                      {folders.filter(f => f.space_id === sp.id).map(f => {
+                        const fOpen = open[f.id] ?? true
+                        return (
+                          <div key={f.id} className="folder">
+                            <div className="list-row">
+                              <button className="folder-toggle" onClick={() => setOpen(o => ({ ...o, [f.id]: !fOpen }))}>
+                                <span className="caret">{fOpen ? '▾' : '▸'}</span> 📁 {f.name}
+                              </button>
+                              {full && <Menu title="Folder options" items={[
+                                { label: 'New list in folder', onClick: () => addList(sp.id, f.id) },
+                                { label: 'Rename', onClick: () => renameFolder(f.id, f.name) },
+                                { label: 'Delete folder', onClick: () => deleteFolder(f.id, f.name), danger: true },
+                              ]} />}
+                            </div>
+                            {fOpen && <div className="folder-lists">{spaceLists.filter(l => l.folder_id === f.id).map(l => listLink(l, full))}</div>}
+                          </div>
+                        )
+                      })}
+                      {spaceLists.filter(l => !l.folder_id).map(l => listLink(l, full))}
+                    </>
+                  )}
                 </div>
               )
             })}
           </div>
         )}
       </aside>
+      {settingsFor && spaces.find(x => x.id === settingsFor) && (
+        <SpaceSettings space={spaces.find(x => x.id === settingsFor)!} isAdmin={admin} onClose={() => setSettingsFor(null)} onChanged={refresh} />
+      )}
       <main className="main">
         <header className="topbar">
           <form className="top-search" onSubmit={e => { e.preventDefault(); const q = new FormData(e.currentTarget).get('q')?.toString().trim(); if (q) navigate(`/search?q=${encodeURIComponent(q)}`) }}>

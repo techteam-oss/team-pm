@@ -8,7 +8,8 @@ type Row = { id: string; number: number; title: string; list_id: string; space_i
 export default function Archive() {
   const { session } = useAuth()
   const me = session!.user.id
-  const { workspace, lists, spaces, level, people } = useWorkspace()
+  const { workspace, lists, spaces, level, people, refresh } = useWorkspace()
+  const [oldLists, setOldLists] = useState<{ id: string; name: string; space_id: string }[]>([])
   const [tab, setTab] = useState<'archived' | 'trash'>('archived')
   const [rows, setRows] = useState<Row[] | null>(null)
 
@@ -17,8 +18,8 @@ export default function Archive() {
     let q = supabase.from('tasks').select('id, number, title, list_id, space_id, parent_task_id, created_by, updated_at, deleted_at, deleted_by')
       .eq('workspace_id', workspace.id).eq('archived', true).is('parent_task_id', null).limit(500)
     q = tab === 'trash' ? q.not('deleted_at', 'is', null).order('deleted_at', { ascending: false }) : q.is('deleted_at', null).order('updated_at', { ascending: false })
-    const { data } = await q
-    setRows(data ?? [])
+    const [{ data }, { data: ol }] = await Promise.all([q, supabase.from('lists').select('id, name, space_id').eq('workspace_id', workspace.id).eq('archived', true).order('name')])
+    setRows(data ?? []); setOldLists(ol ?? [])
   }, [workspace, tab])
   useEffect(() => { setRows(null); load() }, [load])
 
@@ -43,6 +44,20 @@ export default function Archive() {
           <button className={tab === 'trash' ? 'on' : ''} onClick={() => setTab('trash')}>🗑 Trash</button>
         </div>
       </div>
+      {tab === 'archived' && oldLists.length > 0 && (
+        <div className="group">
+          <div className="group-head"><b>Archived lists</b><span className="muted small">{oldLists.length}</span></div>
+          <table className="grid tasks"><tbody>
+            {oldLists.map(l => (
+              <tr key={l.id}>
+                <td className="title">{l.name}</td>
+                <td className="muted small">{spaces.find(x => x.id === l.space_id)?.name}</td>
+                <td style={{ textAlign: 'right' }}>{level(l.space_id) >= 4 && <button onClick={async () => { const { error } = await supabase.from('lists').update({ archived: false }).eq('id', l.id); if (error) alert(error.message); else { load(); refresh() } }}>Restore list</button>}</td>
+              </tr>
+            ))}
+          </tbody></table>
+        </div>
+      )}
       {rows === null ? <p className="muted">Loading…</p> : rows.length === 0 ? <div className="card"><p className="muted">{tab === 'trash' ? 'The trash is empty.' : 'Nothing archived.'}</p></div> : (
         <div className="group">
           <table className="grid tasks"><tbody>
