@@ -7,8 +7,9 @@ import Avatar from './Avatar'
 import TimeSection from './TimeSection'
 import { RichEditor } from './RichText'
 import { encodeMentions, MentionTextarea, renderMentions, type MentionPerson } from './Mentions'
-import { askConfirm, notify } from './Dialogs'
-import { Bell, BellRing, Paperclip, X } from 'lucide-react'
+import { askChoice, askConfirm, notify } from './Dialogs'
+import { Bell, BellRing, FolderInput, Paperclip, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 type Full = {
   id: string; number: number; list_id: string; title: string; description: string | null; status_id: string | null
@@ -38,7 +39,8 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
 }) {
   const { session } = useAuth()
   const me = session!.user.id
-  const { people, level } = useWorkspace()
+  const { people, level, lists, folders } = useWorkspace()
+  const navigate = useNavigate()
   const lvl = level(spaceId)
   const canEdit = lvl >= 3, canComment = lvl >= 2
   const [task, setTask] = useState<Full | null>(null)
@@ -160,6 +162,20 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
     onChanged()
     if (close) onClose(); else load()
   }
+  async function moveTask() {
+    if (!task) return
+    const options = lists.filter(l => l.space_id === spaceId && l.id !== task.list_id)
+    if (!options.length) { notify('There is no other list in this space to move it to.'); return }
+    const label = (l: typeof lists[number]) => { const f = folders.find(x => x.id === l.folder_id); return f ? `${f.name} / ${l.name}` : l.name }
+    const pick = await askChoice({ title: `Move "${task.title}"`, confirmLabel: 'Move task', initial: options[0].id,
+      options: options.map(l => ({ value: l.id, label: label(l) })) })
+    if (!pick) return
+    const { error } = await supabase.rpc('move_task', { p_task: task.id, p_list: pick })
+    if (error) { notify(error.message); return }
+    notify(`Moved to ${label(options.find(l => l.id === pick)!)}${subs.length ? ' with its subtasks' : ''}`, 'ok')
+    onChanged()
+    navigate(`/list/${pick}?task=${task.id}`)
+  }
   const trashTask = async () => { if (await askConfirm({ title: 'Move this task to the trash?', body: 'Its subtasks go too. You can restore them from Archive.', confirmLabel: 'Move to trash', danger: true })) setArchive({ deleted_at: new Date().toISOString() }, true) }
 
   const describe = (a: Activity) => {
@@ -169,6 +185,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
       case 'archived': return 'archived this task'
       case 'trashed': return 'moved this task to the trash'
       case 'restored': return 'restored this task'
+      case 'moved': return `moved this task from ${d.from} to ${d.to}`
       case 'status': return `changed status from ${d.from ?? 'none'} to ${d.to ?? 'none'}`
       case 'priority': return `changed priority from ${d.from} to ${d.to}`
       case 'due_date': return d.to ? `set the due date to ${d.to}` : 'removed the due date'
@@ -195,6 +212,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
               : supabase.from('task_watchers').insert({ task_id: taskId }))}>
               {watching ? <><BellRing size={14} aria-hidden />Watching</> : <><Bell size={14} aria-hidden />Watch</>} · {watchers.length}
             </button>
+            {canEdit && !task.archived && <button onClick={moveTask} title="Move to another list in this space"><FolderInput size={14} aria-hidden />Move</button>}
             {canEdit && !task.archived && <button onClick={() => setArchive({ archived: true }, true)} title="Hide from views, keep everything">Archive</button>}
             {canEdit && task.archived && <button onClick={() => setArchive({ archived: false }, false)}>Restore</button>}
             {!task.deleted_at && canEdit && <button className="danger-link" onClick={trashTask}>Delete</button>}
