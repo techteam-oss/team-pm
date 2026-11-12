@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Mail, Send, Webhook } from 'lucide-react'
+import { DatabaseBackup, Download, Mail, Send, Webhook } from 'lucide-react'
+import { ago } from '../components/NotificationBell'
 import { supabase } from '../lib/supabase'
 import { isAdmin, useWorkspace } from '../lib/workspace'
 import { notify } from '../components/Dialogs'
 
 const DEFAULT_APP = 'https://techteam-oss.github.io/team-pm/'
 
-export const EMAIL_KINDS: { kind: string; label: string; on: boolean }[] = [
+export const EMAIL_KINDS: { kind: string; label: string; on: boolean; adminOnly?: boolean }[] = [
   { kind: 'mention', label: 'Someone @mentions me', on: true },
   { kind: 'assigned', label: 'I am assigned a task', on: true },
   { kind: 'comment_assigned', label: 'A comment is assigned to me', on: true },
@@ -15,6 +16,8 @@ export const EMAIL_KINDS: { kind: string; label: string; on: boolean }[] = [
   { kind: 'estimate_exceeded', label: 'A task goes over its time estimate', on: true },
   { kind: 'due_today', label: 'My task is due today (9 AM)', on: true },
   { kind: 'overdue', label: 'My task is overdue (9 AM)', on: true },
+  { kind: 'feedback_update', label: 'An admin replies to feedback I sent', on: true },
+  { kind: 'feedback', label: 'Someone sends feedback about the app (admins)', on: true, adminOnly: true },
   { kind: 'comment', label: 'New comments on tasks I watch', on: false },
   { kind: 'completed', label: 'A task I created is completed', on: false },
 ]
@@ -26,9 +29,12 @@ export default function Settings() {
   const [app, setApp] = useState(DEFAULT_APP)
   const [saved, setSaved] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [backup, setBackup] = useState<{ count: number; latest: string | null; size: string } | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     if (!workspace) return
+    supabase.rpc('backup_status', { ws: workspace.id }).then(({ data }) => setBackup(data as typeof backup))
     supabase.from('workspace_settings').select('ghl_webhook_url, app_url').eq('workspace_id', workspace.id).maybeSingle()
       .then(({ data }) => { setHook(data?.ghl_webhook_url ?? ''); setApp(data?.app_url ?? DEFAULT_APP); setSaved(data?.ghl_webhook_url ?? '') })
   }, [workspace])
@@ -46,6 +52,21 @@ export default function Settings() {
     setBusy(false)
     if (error) notify(error.message); else { setSaved(url); notify('Settings saved', 'ok') }
   }
+  async function download() {
+    if (!workspace) return
+    setExporting(true)
+    const { data, error } = await supabase.rpc('export_workspace', { ws: workspace.id })
+    setExporting(false)
+    if (error) { notify(error.message); return }
+    const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `team-pm-backup-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000)
+    notify('Backup downloaded. Keep it somewhere safe, such as a private Google Drive folder.', 'ok')
+  }
+
   async function test() {
     if (!workspace) return
     setBusy(true)
@@ -77,6 +98,23 @@ export default function Settings() {
           <span className={`pill ${saved ? 'ok' : ''}`}><Mail size={12} aria-hidden />{saved ? 'Emails on' : 'Emails off'}</span>
         </div>
       </form>
+
+      <div className="card stack" id="backup">
+        <h2 className="row" style={{ gap: 8 }}><DatabaseBackup size={17} aria-hidden />Backups</h2>
+        <p className="muted small" style={{ margin: 0 }}>
+          Every night at 2 AM (Pakistan time) a full copy of this workspace is saved: spaces, lists, tasks, comments, checklists, time entries,
+          members and feedback. The last 14 nights are kept, so anything deleted by mistake can be put back from one of them.
+          Uploaded files themselves are not copied, only their names and links.
+        </p>
+        <div className="row">
+          <span className={`pill ${backup?.latest ? 'ok' : ''}`}>{backup?.latest ? `Last backup ${ago(backup.latest)}` : 'No backup yet'}</span>
+          {backup && backup.count > 0 && <span className="muted small">{backup.count} kept · {backup.size}</span>}
+        </div>
+        <div className="row">
+          <button className="btn" onClick={download} disabled={exporting}><Download size={15} aria-hidden />{exporting ? 'Preparing…' : 'Download a backup now'}</button>
+          <span className="muted small">Once a week, save a copy outside Supabase (for example in Google Drive). Downloads are recorded in the activity log.</span>
+        </div>
+      </div>
 
       <div className="card stack">
         <h2>What gets emailed</h2>

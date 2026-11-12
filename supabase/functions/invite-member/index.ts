@@ -26,6 +26,8 @@ type Body = {
   role: (typeof ROLES)[number]
   spaces?: { space_id: string; access: (typeof ACCESS)[number] }[]
   redirect_to?: string
+  /** Send a fresh link to someone already in the workspace (no role or access changes). */
+  resend?: boolean
 }
 
 // The webhook URL is set by an admin on the app's Settings page (workspace_settings); the
@@ -72,6 +74,40 @@ Deno.serve(async (req) => {
   }
 
   const appUrl = ALLOWED_REDIRECTS.find((r) => body.redirect_to?.startsWith(r)) ?? ALLOWED_REDIRECTS[0]
+  const { data: ws } = await admin.from('workspaces').select('name').eq('id', body.workspace_id).single()
+  const { data: inviter } = await admin.from('profiles').select('full_name, email').eq('id', caller.user.id).single()
+  const { data: settings } = await admin.from('workspace_settings').select('ghl_webhook_url').eq('workspace_id', body.workspace_id).maybeSingle()
+  const who = inviter?.full_name || inviter?.email || 'Your admin'
+  const wsName = ws?.name ?? ''
+
+  // Resend: a new invite link if they never confirmed, otherwise a link to choose a new password.
+  if (body.resend) {
+    const { data: prof } = await admin.from('profiles').select('id, full_name').eq('email', email).maybeSingle()
+    const { data: member } = prof
+      ? await admin.from('workspace_members').select('role').eq('workspace_id', body.workspace_id).eq('user_id', prof.id).maybeSingle()
+      : { data: null }
+    if (!prof || !member) return json({ error: 'That person is not in this workspace' }, 404)
+    const { data: u } = await admin.auth.admin.getUserById(prof.id)
+    const kind = u?.user?.email_confirmed_at ? 'recovery' : 'invite'
+    if (kind === 'invite') await admin.from('signup_allowlist').upsert({ email })
+    const { data: fresh, error: freshErr } = kind === 'invite'
+      ? await admin.auth.admin.generateLink({ type: 'invite', email, options: { redirectTo: appUrl } })
+      : await admin.auth.admin.generateLink({ type: 'recovery', email, options: { redirectTo: appUrl } })
+    if (kind === 'invite') await admin.from('signup_allowlist').delete().eq('email', email)
+    if (!fresh?.properties?.hashed_token) return json({ error: freshErr?.message ?? 'Could not create a new link' }, 400)
+    const freshLink = `${appUrl}?token_hash=${fresh.properties.hashed_token}&type=${kind}`
+    const name = prof.full_name || email.split('@')[0]
+    const emailed = await notifyGhl(settings?.ghl_webhook_url, kind === 'invite'
+      ? { event: 'invite', email, name, link: freshLink,
+          subject: `Your new invite to ${wsName || 'the project tool'}`, heading: `Join ${wsName || 'your team'}`,
+          message: `${who} sent you a fresh invite to ${wsName || 'the team'}'s project tool. Click the button to set your password and sign in. The link works once and expires in 1 hour.`,
+          button_text: 'Accept invite', task: '', task_number: '', actor: who, workspace: wsName, invited_by: who, role: member.role }
+      : { event: 'password_reset', email, name, link: freshLink,
+          subject: 'Set a new password', heading: 'Set a new password',
+          message: `${who} sent you a link to choose a new password for ${wsName || 'the project tool'}. The link works once and expires in 1 hour.`,
+          button_text: 'Choose a new password', task: '', task_number: '', actor: who, workspace: wsName })
+    return json({ ok: true, kind, emailed, invite_link: freshLink })
+  }
 
   // Self sign-up is blocked in the database; only emails on this list can get a new account.
   await admin.from('signup_allowlist').upsert({ email })
@@ -109,16 +145,12 @@ Deno.serve(async (req) => {
 
   let emailed = false
   if (inviteLink) {
-    const { data: ws } = await admin.from('workspaces').select('name').eq('id', body.workspace_id).single()
-    const { data: inviter } = await admin.from('profiles').select('full_name, email').eq('id', caller.user.id).single()
-    const { data: settings } = await admin.from('workspace_settings').select('ghl_webhook_url').eq('workspace_id', body.workspace_id).maybeSingle()
     const name = body.full_name?.trim() || email.split('@')[0]
-    const who = inviter?.full_name || inviter?.email || 'Your admin'
     emailed = await notifyGhl(settings?.ghl_webhook_url, {
       event: 'invite', email, name, link: inviteLink,
       subject: `${who} invited you to ${ws?.name ?? 'the project tool'}`,
       heading: `Join ${ws?.name ?? 'your team'}`,
-      message: `${who} added you to ${ws?.name ?? 'the team'}'s project tool as ${body.role === 'admin' ? 'an admin' : `a ${body.role}`}. Click the button to set your password and sign in. The link works once and expires in 1 hour, so ask your admin for a new one if it has run out.`,
+      message: `${who} added you to ${ws?.name ?? 'the team'}'s project tool as ${body.role === 'admin' ? 'an admin' : `a ${body.role}`}. Click the button to set your password and sign in. The link works once and expires in 1 hour. If it has run out, ask your admin to press Resend invite.`,
       button_text: 'Accept invite', task: '', task_number: '', actor: who,
       workspace: ws?.name ?? '', invited_by: who, role: body.role,
     })

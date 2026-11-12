@@ -9,7 +9,7 @@ import { applyTheme, getStoredTheme } from './lib/theme'
 // Invite and password-reset emails land with "#access_token=...&type=invite|recovery".
 // Remember that before supabase-js consumes the hash, so we can ask for a new password.
 const hash = window.location.hash
-if (/type=(invite|recovery)/.test(hash)) sessionStorage.setItem('team-pm-needs-password', '1')
+if (/type=(invite|recovery)/.test(hash)) { try { sessionStorage.setItem('team-pm-needs-password', '1') } catch { /* storage blocked */ } }
 
 applyTheme(getStoredTheme())
 
