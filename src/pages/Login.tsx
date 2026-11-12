@@ -41,7 +41,7 @@ export default function Login() {
   return (
     <div className="auth-wrap">
       <form className="card auth-card" onSubmit={signIn}>
-        <div className="auth-logo"><img src="brand/impact-hub-mark.svg" width={36} height={36} alt="" /><span>Impact <span className="brand-hub">Hub</span></span></div>
+        <div className="auth-logo"><img className="brand-mark-light" src="brand/impact-hub-mark.svg" width={36} height={36} alt="" /><img className="brand-mark-dark" src="brand/impact-hub-mark-dark.svg" width={36} height={36} alt="" /><span>Impact <span className="brand-hub">Hub</span></span></div>
         <h1>Sign in</h1>
         <p className="muted" style={{ margin: 0 }}>Welcome back. This workspace is invite-only, so ask an admin if you need an account.</p>
         {blocked && (

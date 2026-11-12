@@ -143,9 +143,10 @@ export default function Layout({ children }: { children: ReactNode }) {
       {drawer && <div className="sidebar-scrim" onClick={() => setDrawer(false)} />}
       <aside className={`sidebar ${drawer ? 'open' : ''}`} aria-label="Workspace navigation">
         <div className="ws-switch">
-          <img className="ws-logo" src="brand/impact-hub-mark.svg" width={28} height={28} alt="" />
+          <img className="ws-logo brand-mark-light" src="brand/impact-hub-mark.svg" width={28} height={28} alt="" />
+          <img className="ws-logo brand-mark-dark" src="brand/impact-hub-mark-dark.svg" width={28} height={28} alt="" />
           <div style={{ minWidth: 0 }}>
-            <div className="ws-name">Impact Hub</div>
+            <div className="ws-name">Impact <span className="brand-hub">Hub</span></div>
             <div className="ws-sub">{[workspace?.name, role].filter(Boolean).join(' · ')}</div>
           </div>
         </div>
