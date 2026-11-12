@@ -1,10 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="15" fill="#0B4163"/>
-  <g stroke="#358EC8" stroke-width="3.6" stroke-linecap="round">
-    <line x1="32" y1="32" x2="17" y2="17"/><line x1="32" y1="32" x2="47" y2="17"/>
-    <line x1="32" y1="32" x2="17" y2="47"/><line x1="32" y1="32" x2="47" y2="47"/>
-  </g>
-  <g fill="#358EC8"><circle cx="17" cy="17" r="5.5"/><circle cx="47" cy="17" r="5.5"/><circle cx="17" cy="47" r="5.5"/><circle cx="47" cy="47" r="5.5"/></g>
-  <circle cx="32" cy="32" r="10" fill="#FFFFFF"/>
-  <circle cx="32" cy="32" r="4.2" fill="#0B4163"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><rect width="64" height="64" rx="15" fill="#FFFFFF"/><line x1="32" y1="32" x2="17" y2="17" stroke="#AA15E0" stroke-width="3.6" stroke-linecap="round"/><line x1="32" y1="32" x2="47" y2="17" stroke="#068EE3" stroke-width="3.6" stroke-linecap="round"/><line x1="32" y1="32" x2="47" y2="47" stroke="#05C04A" stroke-width="3.6" stroke-linecap="round"/><line x1="32" y1="32" x2="17" y2="47" stroke="#07C6FF" stroke-width="3.6" stroke-linecap="round"/><circle cx="17" cy="17" r="5.5" fill="#AA15E0"/><circle cx="47" cy="17" r="5.5" fill="#068EE3"/><circle cx="47" cy="47" r="5.5" fill="#05C04A"/><circle cx="17" cy="47" r="5.5" fill="#07C6FF"/><circle cx="32" cy="32" r="10.5" fill="#FFFFFF"/><path d="M23.53 31.26 A8.5 8.5 0 0 1 31.26 23.53" fill="none" stroke="#AA15E0" stroke-width="4" stroke-linecap="round"/><path d="M32.74 23.53 A8.5 8.5 0 0 1 40.47 31.26" fill="none" stroke="#068EE3" stroke-width="4" stroke-linecap="round"/><path d="M40.47 32.74 A8.5 8.5 0 0 1 32.74 40.47" fill="none" stroke="#05C04A" stroke-width="4" stroke-linecap="round"/><path d="M31.26 40.47 A8.5 8.5 0 0 1 23.53 32.74" fill="none" stroke="#07C6FF" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="32" r="3.6" fill="#2A0F3D"/></svg>
