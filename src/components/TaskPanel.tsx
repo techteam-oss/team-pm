@@ -197,7 +197,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
             </button>
             {canEdit && !task.archived && <button onClick={() => setArchive({ archived: true }, true)} title="Hide from views, keep everything">Archive</button>}
             {canEdit && task.archived && <button onClick={() => setArchive({ archived: false }, false)}>Restore</button>}
-            {!task.deleted_at && (lvl >= 4 || (canEdit && task.created_by === me)) && <button className="danger-link" onClick={trashTask}>Delete</button>}
+            {!task.deleted_at && canEdit && <button className="danger-link" onClick={trashTask}>Delete</button>}
             <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
           </div>
         </div>

@@ -12,6 +12,9 @@ import Dashboard from './pages/Dashboard'
 import Search from './pages/Search'
 import Archive from './pages/Archive'
 import Profile from './pages/Profile'
+import TeamReport from './pages/TeamReport'
+import ActivityLog from './pages/ActivityLog'
+import Settings from './pages/Settings'
 import { TimerProvider } from './lib/time'
 
 function needsPassword() {
@@ -37,6 +40,9 @@ export default function App() {
           <Route path="/archive" element={<Archive />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/members" element={<Members />} />
+          <Route path="/report" element={<TeamReport />} />
+          <Route path="/log" element={<ActivityLog />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/list/:id" element={<ListPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

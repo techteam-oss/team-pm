@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../lib/auth'
-import { useWorkspace } from '../lib/workspace'
+import { isAdmin, useWorkspace } from '../lib/workspace'
 import { askConfirm, notify } from '../components/Dialogs'
 import { Trash2 } from 'lucide-react'
 
 type Row = { id: string; number: number; title: string; list_id: string; space_id: string; parent_task_id: string | null; created_by: string | null; updated_at: string; deleted_at: string | null; deleted_by: string | null }
 
 export default function Archive() {
-  const { session } = useAuth()
-  const me = session!.user.id
-  const { workspace, lists, spaces, level, people, refresh } = useWorkspace()
+  const { workspace, role, lists, spaces, level, people, refresh } = useWorkspace()
   const [oldLists, setOldLists] = useState<{ id: string; name: string; space_id: string }[]>([])
   const [tab, setTab] = useState<'archived' | 'trash'>('archived')
   const [rows, setRows] = useState<Row[] | null>(null)
@@ -27,7 +24,8 @@ export default function Archive() {
 
   const where = (r: Row) => { const l = lists.find(x => x.id === r.list_id); const s = spaces.find(x => x.id === r.space_id); return `${s?.name ?? ''} / ${l?.name ?? ''}` }
   const who = (id: string | null) => people.find(p => p.id === id)?.name ?? 'someone'
-  const canDelete = (r: Row) => level(r.space_id) >= 4 || (level(r.space_id) >= 3 && r.created_by === me)
+  const canDelete = (r: Row) => level(r.space_id) >= 3          // anyone with edit access can trash a task
+  const canPurge = isAdmin(role)                                // only owners/admins delete for good
 
   async function act(r: Row, kind: 'restore' | 'trash' | 'forever') {
     if (kind === 'forever' && !await askConfirm({ title: `Delete "${r.title}" forever?`, body: "Its subtasks are deleted too. This can't be undone.", confirmLabel: 'Delete forever', danger: true })) return
@@ -54,7 +52,8 @@ export default function Archive() {
               <tr key={l.id}>
                 <td className="title">{l.name}</td>
                 <td className="muted small">{spaces.find(x => x.id === l.space_id)?.name}</td>
-                <td style={{ textAlign: 'right' }}>{level(l.space_id) >= 4 && <button onClick={async () => { const { error } = await supabase.from('lists').update({ archived: false }).eq('id', l.id); if (error) notify(error.message); else { load(); refresh() } }}>Restore list</button>}</td>
+                <td className="nowrap" style={{ textAlign: 'right' }}>{level(l.space_id) >= 4 && <button onClick={async () => { const { error } = await supabase.from('lists').update({ archived: false }).eq('id', l.id); if (error) notify(error.message); else { load(); refresh() } }}>Restore list</button>}{' '}
+                  {canPurge && <button className="danger" onClick={async () => { if (!await askConfirm({ title: `Delete the list "${l.name}" forever?`, body: "All its tasks, comments, files and time entries are deleted. This can't be undone.", confirmLabel: 'Delete forever', danger: true })) return; const { error } = await supabase.from('lists').delete().eq('id', l.id); if (error) notify(error.message); else { load(); refresh() } }}>Delete forever</button>}</td>
               </tr>
             ))}
           </tbody></table>
@@ -71,7 +70,7 @@ export default function Archive() {
                 <td className="nowrap" style={{ textAlign: 'right' }}>
                   {level(r.space_id) >= 3 && <button onClick={() => act(r, 'restore')}>Restore</button>}{' '}
                   {tab === 'archived' && canDelete(r) && <button className="danger" onClick={() => act(r, 'trash')}>Move to trash</button>}
-                  {tab === 'trash' && canDelete(r) && <button className="danger" onClick={() => act(r, 'forever')}>Delete forever</button>}
+                  {tab === 'trash' && canPurge && <button className="danger" onClick={() => act(r, 'forever')}>Delete forever</button>}
                 </td>
               </tr>
             ))}
