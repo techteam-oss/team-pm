@@ -41,13 +41,13 @@ export default function Login() {
   return (
     <div className="auth-wrap">
       <form className="card auth-card" onSubmit={signIn}>
-        <div className="auth-logo"><span className="ws-logo" aria-hidden>T</span>Team PM</div>
+        <div className="auth-logo"><img src="brand/impact-hub-mark.svg" width={36} height={36} alt="" /><span>Impact <span className="brand-hub">Hub</span></span></div>
         <h1>Sign in</h1>
         <p className="muted" style={{ margin: 0 }}>Welcome back. This workspace is invite-only, so ask an admin if you need an account.</p>
         {blocked && (
           <div className="banner warn" role="status">
             This browser blocks sign-in inside this page, so you would be signed out on every reload.
-            <a className="btn small" href={directLink()} target="_blank" rel="noopener"><ExternalLink size={13} aria-hidden />Open Team PM in its own window</a>
+            <a className="btn small" href={directLink()} target="_blank" rel="noopener"><ExternalLink size={13} aria-hidden />Open Impact Hub in its own window</a>
           </div>
         )}
         <label>Email<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label>

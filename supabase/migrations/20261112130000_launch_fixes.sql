@@ -60,7 +60,7 @@ begin
   if new.task_id is null then
     select name into ws from public.workspaces where id = new.workspace_id;
     link := s.app_url || coalesce(new.data ->> 'path', '');
-    subj := coalesce(new.data ->> 'subject', 'Update from your project tool');
+    subj := coalesce(new.data ->> 'subject', 'Update from Impact Hub');
     head := coalesce(new.data ->> 'heading', 'Update');
     btn := coalesce(new.data ->> 'button', 'Open the app');
     t := null;
@@ -142,7 +142,7 @@ begin
       values (new.workspace_id, u, 'feedback', null, new.user_id,
         who || case when new.blocking then ' is blocked and reported ' else ' sent ' end || what || ': "' || left(new.message, 300) || '"',
         jsonb_build_object('path', '#/feedback?id=' || new.id, 'feedback_id', new.id, 'blocking', new.blocking, 'button', 'Open feedback',
-          'subject', case when new.blocking then 'Blocker: ' else '' end || who || ' sent feedback about the project tool',
+          'subject', case when new.blocking then 'Blocker: ' else '' end || who || ' sent feedback about Impact Hub',
           'heading', case when new.blocking then 'Someone is blocked' else 'New feedback' end));
     end if;
   end loop;
@@ -234,6 +234,24 @@ $$;
 revoke all on function private.feedback_touch(), private.feedback_notify(), private.feedback_update_notify(),
   private.workspace_snapshot(uuid), private.cron_backup(), private.cron_cleanup(), private.email_notification(), private.email_default(text)
   from public, anon, authenticated;
+
+-- Test email now names the app (Impact Hub).
+create or replace function public.send_test_email(ws uuid) returns text language plpgsql security definer set search_path = '' as $$
+declare s record; p record;
+begin
+  if not private.has_role(ws, array['owner','admin']::public.workspace_role[]) then raise exception 'Only admins can do this' using errcode = '42501'; end if;
+  select ghl_webhook_url, app_url into s from public.workspace_settings where workspace_id = ws;
+  if s.ghl_webhook_url is null then raise exception 'Add the GHL webhook URL first'; end if;
+  select email, coalesce(nullif(full_name, ''), split_part(email, '@', 1)) as name into p from public.profiles where id = auth.uid();
+  perform net.http_post(url := s.ghl_webhook_url,
+    body := jsonb_build_object('event', 'test', 'email', p.email, 'name', p.name, 'subject', 'Test email from Impact Hub',
+      'heading', 'Emails are working', 'message', 'If you can read this, GoHighLevel is sending emails for Impact Hub.',
+      'button_text', 'Open Impact Hub', 'link', s.app_url, 'task', '', 'task_number', '', 'actor', '', 'workspace', (select name from public.workspaces where id = ws)),
+    headers := '{"Content-Type": "application/json"}'::jsonb);
+  return p.email;
+end; $$;
+revoke all on function public.send_test_email(uuid) from public, anon;
+grant execute on function public.send_test_email(uuid) to authenticated;
 
 -- First backup right away.
 select private.cron_backup();

@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event: 'password_reset', email, name: profile.full_name || email.split('@')[0], link,
           subject: 'Reset your password', heading: 'Reset your password',
-          message: 'Someone asked to reset the password for your project tool account. Click the button to choose a new one. The link works once and expires in 1 hour. If this was not you, ignore this email.',
+          message: 'Someone asked to reset the password for your Impact Hub account. Click the button to choose a new one. The link works once and expires in 1 hour. If this was not you, ignore this email.',
           button_text: 'Choose a new password', task: '', task_number: '', actor: '', workspace: wsName }) })
     } catch { /* ignore */ }
   }

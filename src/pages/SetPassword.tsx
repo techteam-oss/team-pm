@@ -27,7 +27,7 @@ export default function SetPassword() {
   return (
     <div className="auth-wrap">
       <form className="card auth-card" onSubmit={save}>
-        <div className="auth-logo"><span className="ws-logo" aria-hidden>T</span>Team PM</div>
+        <div className="auth-logo"><img src="brand/impact-hub-mark.svg" width={36} height={36} alt="" /><span>Impact <span className="brand-hub">Hub</span></span></div>
         <h1>Set your password</h1>
         <p className="muted">You'll use this with your email to sign in from now on. Use 8 or more characters; a short phrase of 3 or 4 words works well.</p>
         <label>New password<input type="password" autoComplete="new-password" required value={password} onChange={e => setPassword(e.target.value)} /></label>

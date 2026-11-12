@@ -143,10 +143,10 @@ export default function Layout({ children }: { children: ReactNode }) {
       {drawer && <div className="sidebar-scrim" onClick={() => setDrawer(false)} />}
       <aside className={`sidebar ${drawer ? 'open' : ''}`} aria-label="Workspace navigation">
         <div className="ws-switch">
-          <span className="ws-logo" aria-hidden>{(workspace?.name ?? 'T')[0].toUpperCase()}</span>
+          <img className="ws-logo" src="brand/impact-hub-mark.svg" width={28} height={28} alt="" />
           <div style={{ minWidth: 0 }}>
-            <div className="ws-name">{workspace?.name ?? 'Team PM'}</div>
-            {role && <div className="ws-sub">{role}</div>}
+            <div className="ws-name">Impact Hub</div>
+            <div className="ws-sub">{[workspace?.name, role].filter(Boolean).join(' · ')}</div>
           </div>
         </div>
         <div className="sidebar-scroll">
@@ -257,7 +257,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <button className="icon-btn" title="Stop timer" aria-label="Stop timer" onClick={stop}><Square size={12} fill="currentColor" /></button>
               </span>
             )}
-            {embedded && <button className="icon-btn top-ext" title="Open in its own window" aria-label="Open Team PM in its own window" onClick={openInOwnWindow}><ExternalLink size={17} /></button>}
+            {embedded && <button className="icon-btn top-ext" title="Open in its own window" aria-label="Open Impact Hub in its own window" onClick={openInOwnWindow}><ExternalLink size={17} /></button>}
             <NotificationBell />
             <Menu title="Your account" className="me-btn" icon={<Avatar name={myName} id={session!.user.id} size={30} />}
               head={<div className="row" style={{ flexWrap: 'nowrap' }}><Avatar name={myName} id={session!.user.id} size={32} />

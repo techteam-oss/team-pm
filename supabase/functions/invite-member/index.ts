@@ -99,12 +99,12 @@ Deno.serve(async (req) => {
     const name = prof.full_name || email.split('@')[0]
     const emailed = await notifyGhl(settings?.ghl_webhook_url, kind === 'invite'
       ? { event: 'invite', email, name, link: freshLink,
-          subject: `Your new invite to ${wsName || 'the project tool'}`, heading: `Join ${wsName || 'your team'}`,
-          message: `${who} sent you a fresh invite to ${wsName || 'the team'}'s project tool. Click the button to set your password and sign in. The link works once and expires in 1 hour.`,
+          subject: `Your new invite to Impact Hub`, heading: `Join ${wsName || 'your team'}`,
+          message: `${who} sent you a fresh invite to Impact Hub, ${wsName || 'the team'}'s project tool. Click the button to set your password and sign in. The link works once and expires in 1 hour.`,
           button_text: 'Accept invite', task: '', task_number: '', actor: who, workspace: wsName, invited_by: who, role: member.role }
       : { event: 'password_reset', email, name, link: freshLink,
           subject: 'Set a new password', heading: 'Set a new password',
-          message: `${who} sent you a link to choose a new password for ${wsName || 'the project tool'}. The link works once and expires in 1 hour.`,
+          message: `${who} sent you a link to choose a new password for Impact Hub. The link works once and expires in 1 hour.`,
           button_text: 'Choose a new password', task: '', task_number: '', actor: who, workspace: wsName })
     return json({ ok: true, kind, emailed, invite_link: freshLink })
   }
@@ -148,9 +148,9 @@ Deno.serve(async (req) => {
     const name = body.full_name?.trim() || email.split('@')[0]
     emailed = await notifyGhl(settings?.ghl_webhook_url, {
       event: 'invite', email, name, link: inviteLink,
-      subject: `${who} invited you to ${ws?.name ?? 'the project tool'}`,
+      subject: `${who} invited you to Impact Hub`,
       heading: `Join ${ws?.name ?? 'your team'}`,
-      message: `${who} added you to ${ws?.name ?? 'the team'}'s project tool as ${body.role === 'admin' ? 'an admin' : `a ${body.role}`}. Click the button to set your password and sign in. The link works once and expires in 1 hour. If it has run out, ask your admin to press Resend invite.`,
+      message: `${who} added you to Impact Hub, ${ws?.name ?? 'the team'}'s project tool, as ${body.role === 'admin' ? 'an admin' : `a ${body.role}`}. Click the button to set your password and sign in. The link works once and expires in 1 hour. If it has run out, ask your admin to press Resend invite.`,
       button_text: 'Accept invite', task: '', task_number: '', actor: who,
       workspace: ws?.name ?? '', invited_by: who, role: body.role,
     })

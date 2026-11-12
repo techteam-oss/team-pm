@@ -2,8 +2,8 @@
 :root, :root[data-theme='light'] {
   --bg: #ffffff; --surface: #ffffff; --sidebar: #f7f7f9; --subtle: #f4f4f6; --border: #dddfe5; --border-strong: #c3c6cf; --border-control: #c9ccd4;
   --text: #1c1d21; --muted: #5f6370; --faint: #8b8f9a;
-  --accent: #6e56cf; --accent-text: #ffffff; --accent-fg: #5b45bd; --accent-soft: #efecfb; --accent-hover: #5f48c0;
-  --danger: #d1343e; --ok: #16834a; --warn: #b4580b; --hover: #efeff2; --active: #e9e6fa;
+  --accent: #0B4163; --accent-text: #ffffff; --accent-fg: #1A679B; --accent-soft: #EEF5FB; --accent-hover: #0F5683; --brand-blue: #358EC8;
+  --danger: #d1343e; --ok: #16834a; --warn: #b4580b; --hover: #efeff2; --active: #E4EFF8;
   --shadow-sm: 0 1px 2px rgba(16,17,20,.06); --shadow-md: 0 4px 14px rgba(16,17,20,.08), 0 1px 3px rgba(16,17,20,.06);
   --shadow-lg: 0 16px 40px rgba(16,17,20,.16), 0 2px 6px rgba(16,17,20,.08);
   --scrim: rgba(16,17,20,.4); color-scheme: light;
@@ -11,8 +11,8 @@
 :root[data-theme='dark'] {
   --bg: #17181c; --surface: #1e2025; --sidebar: #131417; --subtle: #22242a; --border: #373b44; --border-strong: #4d525e; --border-control: #4a4f5b;
   --text: #ecedef; --muted: #a3a7b1; --faint: #7d818c;
-  --accent: #6e56cf; --accent-text: #ffffff; --accent-fg: #b3a6ff; --accent-soft: #2a2545; --accent-hover: #7d66da;
-  --danger: #ff6b72; --ok: #4cc38a; --warn: #f0a24b; --hover: #26282e; --active: #2d2848;
+  --accent: #2470A6; --accent-text: #ffffff; --accent-fg: #7DBDE8; --accent-soft: #16283A; --accent-hover: #2B7AB0; --brand-blue: #4A9DD3;
+  --danger: #ff6b72; --ok: #4cc38a; --warn: #f0a24b; --hover: #26282e; --active: #173149;
   --shadow-sm: 0 1px 2px rgba(0,0,0,.4); --shadow-md: 0 4px 14px rgba(0,0,0,.35); --shadow-lg: 0 16px 40px rgba(0,0,0,.55);
   --scrim: rgba(0,0,0,.6); color-scheme: dark;
 }
@@ -302,9 +302,12 @@ button.react.on { border-color: var(--accent); background: var(--accent-soft); }
 /* Auth pages */
 .auth-wrap { min-height: 100%; display: grid; place-items: center; padding: 24px 16px; background:
   radial-gradient(900px 500px at 15% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%),
-  radial-gradient(700px 400px at 110% 110%, color-mix(in srgb, #a855f7 14%, transparent), transparent 60%), var(--bg); }
+  radial-gradient(700px 400px at 110% 110%, color-mix(in srgb, var(--brand-blue) 16%, transparent), transparent 60%), var(--bg); }
 .auth-card { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 14px; padding: 28px; box-shadow: var(--shadow-lg); }
-.auth-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; }
+.auth-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 19px; letter-spacing: -.01em; }
+.auth-logo img { border-radius: 9px; flex-shrink: 0; }
+.brand-hub { color: var(--brand-blue); }
+img.ws-logo { background: none; display: block; }
 .auth-card h1 { font-size: 22px; }
 .auth-card button.primary { padding: 9px 12px; }
 

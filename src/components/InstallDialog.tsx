@@ -3,7 +3,7 @@ import { Copy, ExternalLink, MoreVertical, Share, SquarePlus, X } from 'lucide-r
 import { APP_URL, canPromptInstall, isEmbedded, openInOwnWindow, platform, promptInstall } from '../lib/embed'
 import { notify } from './Dialogs'
 
-/** How to put Team PM on a phone's home screen (opens full screen, no funnel page in between). */
+/** How to put Impact Hub on a phone's home screen (opens full screen, no funnel page in between). */
 export default function InstallDialog({ onClose }: { onClose: () => void }) {
   const [os, setOs] = useState(platform())
   const embedded = isEmbedded()
@@ -26,14 +26,14 @@ export default function InstallDialog({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal install" role="dialog" aria-modal="true" aria-labelledby="inst-title">
         <div className="modal-head">
-          <h2 id="inst-title">Add Team PM to your phone</h2>
+          <h2 id="inst-title">Add Impact Hub to your phone</h2>
           <button ref={closeRef} type="button" className="icon-btn" aria-label="Close" onClick={onClose}><X size={16} /></button>
         </div>
         <p className="modal-body">It gets its own icon and opens full screen, straight to your tasks. Sign in once and it remembers you.</p>
         {oneTap && <button className="btn primary" onClick={async () => { if (await promptInstall()) onClose() }}>Install app</button>}
         {embedded && (
           <div className="banner">
-            You are inside the funnel page, where phones can't install apps. Open Team PM on its own first, then follow the steps there.
+            You are inside the funnel page, where phones can't install apps. Open Impact Hub on its own first, then follow the steps there.
             <button className="btn small" onClick={openInOwnWindow}><ExternalLink size={13} aria-hidden />Open in its own window</button>
           </div>
         )}
