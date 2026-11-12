@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { useWorkspace } from '../lib/workspace'
 import Avatar from '../components/Avatar'
 import ThemeSwitch from '../components/ThemeSwitch'
+import { EMAIL_KINDS } from './Settings'
 
 export default function Profile() {
   const { session } = useAuth()
@@ -15,6 +16,14 @@ export default function Profile() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [pw, setPw] = useState('')
+  const [prefs, setPrefs] = useState<Record<string, boolean>>({})
+  useEffect(() => { supabase.from('profiles').select('email_prefs').eq('id', uid).single().then(({ data }) => setPrefs((data?.email_prefs ?? {}) as Record<string, boolean>)) }, [uid])
+  async function togglePref(kind: string, on: boolean) {
+    const next = { ...prefs, [kind]: on }
+    setPrefs(next)
+    const { error } = await supabase.from('profiles').update({ email_prefs: next }).eq('id', uid)
+    if (error) setMsg(error.message)
+  }
 
   async function saveName(e: FormEvent) {
     e.preventDefault()
@@ -74,6 +83,13 @@ export default function Profile() {
         <b>Change password</b>
         <div className="row"><input type="password" autoComplete="new-password" placeholder="New password (8+ characters)" value={pw} onChange={e => setPw(e.target.value)} /><button>Change</button></div>
       </form>
+      <div className="card stack">
+        <b>Email me when…</b>
+        <span className="muted small" style={{ marginTop: -6 }}>You always see these in the bell. Untick to stop the email only.</span>
+        {EMAIL_KINDS.map(k => (
+          <label key={k.kind} className="tb-check"><input type="checkbox" checked={prefs[k.kind] ?? k.on} onChange={e => togglePref(k.kind, e.target.checked)} />{k.label}</label>
+        ))}
+      </div>
     </div>
   )
 }

@@ -3,13 +3,14 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   Archive, ChevronRight, CircleUserRound, FolderClosed, FolderPlus, Home, LayoutDashboard, List as ListIcon, ListPlus,
   Lock, LogOut, Menu as MenuIcon, Monitor, Moon, Pencil, Plus, Search, Settings, Square, Sun, Timer, Trash2, Users,
-  CheckSquare, FolderInput,
+  CheckSquare, FolderInput, BarChart3, History,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { isAdmin, useWorkspace } from '../lib/workspace'
 import Menu from './Menu'
 import Avatar from './Avatar'
+import NotificationBell from './NotificationBell'
 import SpaceSettings from './SpaceSettings'
 import { DialogHost, askChoice, askConfirm, askText, notify } from './Dialogs'
 import type { List, Space } from '../lib/workspace'
@@ -102,6 +103,10 @@ export default function Layout({ children }: { children: ReactNode }) {
     if (moved.error) { notify(moved.error.message); return }
     run(supabase.from('folders').delete().eq('id', id))
   }
+  async function deleteList(l: List) {
+    if (!await askConfirm({ title: `Delete the list "${l.name}"?`, body: 'Every task, comment, file and time entry in it is deleted for good. This is recorded in the activity log. Archive the list instead if you might need it later.', confirmLabel: 'Delete list', danger: true })) return
+    if (await run(supabase.from('lists').delete().eq('id', l.id)) && location.pathname === `/list/${l.id}`) navigate('/')
+  }
   async function renameFolder(id: string, current: string) {
     const r = await askText({ title: 'Rename folder', label: 'Folder name', initial: current })
     if (r && r.value !== current) run(supabase.from('folders').update({ name: r.value }).eq('id', id))
@@ -114,7 +119,8 @@ export default function Layout({ children }: { children: ReactNode }) {
         { label: 'Rename', icon: <Pencil size={14} />, onClick: () => renameList(l) },
         { label: 'Move to folder', icon: <FolderInput size={14} />, onClick: () => moveList(l) },
         'sep',
-        { label: 'Archive list', icon: <Archive size={14} />, onClick: () => archiveList(l), danger: true },
+        { label: 'Archive list', icon: <Archive size={14} />, onClick: () => archiveList(l) },
+        admin ? { label: 'Delete list', icon: <Trash2 size={14} />, onClick: () => deleteList(l), danger: true } : null,
       ]} /></div>}
     </div>
   )
@@ -136,7 +142,13 @@ export default function Layout({ children }: { children: ReactNode }) {
             <NavLink to="/my" className="nav-item"><CheckSquare size={17} aria-hidden />My tasks</NavLink>
             <NavLink to="/dashboard" className="nav-item"><LayoutDashboard size={17} aria-hidden />Dashboard</NavLink>
             <NavLink to="/archive" className="nav-item"><Archive size={17} aria-hidden />Archive</NavLink>
-            {admin && <NavLink to="/members" className="nav-item"><Users size={17} aria-hidden />Members</NavLink>}
+            {admin && <>
+              <div className="nav-label">Admin</div>
+              <NavLink to="/report" className="nav-item"><BarChart3 size={17} aria-hidden />Team report</NavLink>
+              <NavLink to="/members" className="nav-item"><Users size={17} aria-hidden />Members</NavLink>
+              <NavLink to="/log" className="nav-item"><History size={17} aria-hidden />Activity log</NavLink>
+              <NavLink to="/settings" className="nav-item"><Settings size={17} aria-hidden />Settings</NavLink>
+            </>}
           </nav>
           {workspace && (
             <div className="spaces">
@@ -161,6 +173,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                       {full && <div className="row-actions">
                         <Menu title="Space options" items={[
                           { label: 'Space settings', icon: <Settings size={14} />, onClick: () => setSettingsFor(sp.id) },
+                          admin ? { label: 'Delete space', icon: <Trash2 size={14} />, onClick: () => setSettingsFor(sp.id), danger: true } : null,
                         ]} />
                         <Menu title="Add to space" icon={<Plus size={15} />} items={[
                           { label: 'New list', icon: <ListPlus size={14} />, onClick: () => addList(sp.id) },
@@ -183,8 +196,8 @@ export default function Layout({ children }: { children: ReactNode }) {
                                 {full && <div className="row-actions"><Menu title="Folder options" items={[
                                   { label: 'New list in folder', icon: <ListPlus size={14} />, onClick: () => addList(sp.id, f.id) },
                                   { label: 'Rename', icon: <Pencil size={14} />, onClick: () => renameFolder(f.id, f.name) },
-                                  'sep',
-                                  { label: 'Delete folder', icon: <Trash2 size={14} />, onClick: () => deleteFolder(f.id, f.name), danger: true },
+                                  admin ? 'sep' : null,
+                                  admin ? { label: 'Delete folder', icon: <Trash2 size={14} />, onClick: () => deleteFolder(f.id, f.name), danger: true } : null,
                                 ]} /></div>}
                               </div>
                               {fOpen && <div className="folder-lists">{spaceLists.filter(l => l.folder_id === f.id).map(l => listLink(l, full))}</div>}
@@ -226,6 +239,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <button className="icon-btn" title="Stop timer" aria-label="Stop timer" onClick={stop}><Square size={12} fill="currentColor" /></button>
               </span>
             )}
+            <NotificationBell />
             <Menu title="Your account" className="me-btn" icon={<Avatar name={myName} id={session!.user.id} size={30} />}
               head={<div className="row" style={{ flexWrap: 'nowrap' }}><Avatar name={myName} id={session!.user.id} size={32} />
                 <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600 }}>{myName}</div><div className="muted small">{session!.user.email}</div></div></div>}

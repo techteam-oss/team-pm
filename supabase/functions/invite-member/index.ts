@@ -1,7 +1,7 @@
 // invite-member: lets a workspace owner/admin invite someone (or add an existing user)
 // with a role and per-space access. The service-role key stays on the server.
-// Emails go out through GoHighLevel: we POST the invite link to the GHL inbound webhook
-// in the GHL_EMAIL_WEBHOOK_URL secret, and a GHL workflow sends the email.
+// Emails go out through GoHighLevel: we POST the invite to the workspace's GHL inbound webhook
+// (set on the app's Settings page), and a GHL workflow sends the email.
 import { createClient } from 'npm:@supabase/supabase-js@2.119.0'
 
 const ALLOWED_REDIRECTS = [
@@ -28,8 +28,10 @@ type Body = {
   redirect_to?: string
 }
 
-async function notifyGhl(payload: Record<string, string>): Promise<boolean> {
-  const hook = Deno.env.get('GHL_EMAIL_WEBHOOK_URL')
+// The webhook URL is set by an admin on the app's Settings page (workspace_settings); the
+// GHL_EMAIL_WEBHOOK_URL secret is only a fallback.
+async function notifyGhl(hook: string | null | undefined, payload: Record<string, string>): Promise<boolean> {
+  hook = hook || Deno.env.get('GHL_EMAIL_WEBHOOK_URL')
   if (!hook) return false
   try {
     const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
@@ -109,9 +111,16 @@ Deno.serve(async (req) => {
   if (inviteLink) {
     const { data: ws } = await admin.from('workspaces').select('name').eq('id', body.workspace_id).single()
     const { data: inviter } = await admin.from('profiles').select('full_name, email').eq('id', caller.user.id).single()
-    emailed = await notifyGhl({
-      event: 'invite', email, name: body.full_name?.trim() || email.split('@')[0], link: inviteLink,
-      workspace: ws?.name ?? '', invited_by: inviter?.full_name || inviter?.email || '', role: body.role,
+    const { data: settings } = await admin.from('workspace_settings').select('ghl_webhook_url').eq('workspace_id', body.workspace_id).maybeSingle()
+    const name = body.full_name?.trim() || email.split('@')[0]
+    const who = inviter?.full_name || inviter?.email || 'Your admin'
+    emailed = await notifyGhl(settings?.ghl_webhook_url, {
+      event: 'invite', email, name, link: inviteLink,
+      subject: `${who} invited you to ${ws?.name ?? 'the project tool'}`,
+      heading: `Join ${ws?.name ?? 'your team'}`,
+      message: `${who} added you to ${ws?.name ?? 'the team'}'s project tool as ${body.role === 'admin' ? 'an admin' : `a ${body.role}`}. Click the button to set your password and sign in. The link works once and expires in 1 hour, so ask your admin for a new one if it has run out.`,
+      button_text: 'Accept invite', task: '', task_number: '', actor: who,
+      workspace: ws?.name ?? '', invited_by: who, role: body.role,
     })
   }
 
