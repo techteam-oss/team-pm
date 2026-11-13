@@ -666,3 +666,14 @@ tr.task-row:hover .sel-box, .selecting .sel-box, .sel-box:focus-visible, .group-
 .bulk-date { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; font-size: 13px; padding-left: 4px; margin: 0; font-weight: 500; }
 .bulk-date input { width: auto; padding: 5px 8px; }
 @media (max-width: 600px) { .scope-pill { display: none !important; } }
+.ct-template { display: flex; flex-direction: row; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin: 0; }
+.ct-template select { width: auto; max-width: 100%; }
+.ct-template-note { background: var(--subtle); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ct-template-note p { margin: 0; color: var(--muted); font-size: 13px; }
+.workload { padding: 0; overflow-x: auto; }
+.workload td.num, .workload th.num { text-align: right; }
+.workload .meter .small { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.workload .small.warn { color: var(--warn); } .workload .small.danger { color: var(--danger); }
+tr.workload-detail td { background: var(--subtle); }
+tr.workload-detail .plain-list { margin: 0; padding: 4px 0; display: flex; flex-direction: column; gap: 6px; }
+label.crumbs { flex-direction: row; align-items: center; gap: 6px; margin: 0; font-weight: 500; } label.crumbs select { width: auto; }

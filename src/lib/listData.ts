@@ -7,7 +7,7 @@ export type QaState = 'pending' | 'approved' | 'changes' | null
 export type Task = {
   id: string; number: number; title: string; status_id: string | null; priority: string
   due_date: string | null; start_date: string | null; position: number; parent_task_id: string | null
-  list_id: string; reviewer_id: string | null; qa_state: QaState
+  list_id: string; reviewer_id: string | null; qa_state: QaState; recurrence: string | null
   /** Waits on at least one task that is not done yet. */
   blocked: boolean
   assignees: string[]; subtasks: number; subtasks_done: number
@@ -43,7 +43,7 @@ export function useListData(scope: Scope | string | undefined) {
       listIds = (data ?? []).map(l => l.id)
     }
     const stQ = supabase.from('statuses').select('id, name, color, position, is_done, list_id').order('position')
-    const tkQ = supabase.from('tasks').select('id, number, title, status_id, priority, due_date, start_date, position, parent_task_id, list_id, reviewer_id, qa_state, task_assignees(user_id), list:lists!inner(archived)')
+    const tkQ = supabase.from('tasks').select('id, number, title, status_id, priority, due_date, start_date, position, parent_task_id, list_id, reviewer_id, qa_state, recurrence, task_assignees(user_id), list:lists!inner(archived)')
       .eq('archived', false).eq('list.archived', false).order('position').order('created_at')
     const [{ data: st }, { data: tk }] = await Promise.all([
       col ? stQ.eq(col, id) : stQ.in('list_id', listIds ?? []),

@@ -1,5 +1,5 @@
 import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
-import { Ban, CalendarDays, ChevronDown, ChevronRight, Flag, FolderClosed, Inbox, LayoutGrid, List as ListIcon, ListChecks, Network, Plus, Settings2, Eye } from 'lucide-react'
+import { Ban, CalendarDays, Repeat, ChevronDown, ChevronRight, Flag, FolderClosed, Inbox, LayoutGrid, List as ListIcon, ListChecks, Network, Plus, Settings2, Eye } from 'lucide-react'
 import { SpaceBadge } from '../components/Layout'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useWorkspace } from '../lib/workspace'
@@ -132,6 +132,7 @@ export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
             )}
             <span className="tasknum">#{t.number}</span>
             {t.blocked && <span className="meta blocked" title="Waiting on another task"><Ban size={12} aria-hidden />Blocked</span>}
+            {t.recurrence && <span className="meta" title={`Repeats ${t.recurrence}`}><Repeat size={12} aria-label={`Repeats ${t.recurrence}`} /></span>}
             {merged && depth === 0 && <span className="list-tag" title="List">{listLabel(t.list_id)}</span>}
           </div>
         </td>
@@ -171,6 +172,7 @@ export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
   const meta = (t: Task) => (
     <>
       {t.blocked && <span className="meta blocked" title="Waiting on another task"><Ban size={12} aria-hidden />Blocked</span>}
+      {t.recurrence && <span className="meta" title={`Repeats ${t.recurrence}`}><Repeat size={12} aria-label={`Repeats ${t.recurrence}`} /></span>}
       {t.priority !== 'normal' && <span className={`meta prio-${t.priority}`}><Flag size={12} fill={t.priority === 'low' ? 'none' : 'currentColor'} aria-hidden />{t.priority[0].toUpperCase() + t.priority.slice(1)}</span>}
       {t.due_date && <span className={`meta ${isOverdue(t.due_date) && !(t.status_id && doneIds.has(t.status_id)) ? 'overdue' : ''}`}><CalendarDays size={12} aria-hidden />{fmtDate(t.due_date)}</span>}
       {t.subtasks > 0 && (

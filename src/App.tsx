@@ -13,6 +13,7 @@ import Search from './pages/Search'
 import Archive from './pages/Archive'
 import Profile from './pages/Profile'
 import TeamReport from './pages/TeamReport'
+import Workload from './pages/Workload'
 import ActivityLog from './pages/ActivityLog'
 import Settings from './pages/Settings'
 import Feedback from './pages/Feedback'
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/members" element={<Members />} />
           <Route path="/report" element={<TeamReport />} />
+          <Route path="/workload" element={<Workload />} />
           <Route path="/log" element={<ActivityLog />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/feedback" element={<Feedback />} />

@@ -8,7 +8,7 @@ import TimeSection from './TimeSection'
 import { RichEditor } from './RichText'
 import { encodeMentions, MentionTextarea, renderMentions, type MentionPerson } from './Mentions'
 import { askChoice, askConfirm, askText, notify } from './Dialogs'
-import { Bell, BellRing, Check, FolderInput, Paperclip, ShieldCheck, Undo2, X } from 'lucide-react'
+import { Bell, BellRing, Check, CopyPlus, FolderInput, Paperclip, ShieldCheck, Undo2, X } from 'lucide-react'
 import { fmtMinutes } from '../lib/time'
 import { QA_LABEL } from './QaBadge'
 import { shrinkImage } from '../lib/image'
@@ -20,6 +20,7 @@ type Full = {
   tags: string[]; parent_task_id: string | null; created_by: string | null; created_at: string
   archived: boolean; deleted_at: string | null; completed_at: string | null; completed_by: string | null
   qa_state: 'pending' | 'approved' | 'changes' | null; qa_by: string | null; qa_at: string | null; qa_note: string | null; rework_count: number
+  recurrence: 'daily' | 'weekdays' | 'weekly' | 'monthly' | null
 }
 type Sub = { id: string; number: number; title: string; status_id: string | null }
 type Check = { id: string; title: string; done: boolean; position: number }
@@ -72,7 +73,7 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
 
   const load = useCallback(async () => {
     const { data: t } = await supabase.from('tasks')
-      .select('id, number, list_id, title, description, status_id, priority, start_date, due_date, time_estimate_minutes, reviewer_id, tags, parent_task_id, created_by, created_at, archived, deleted_at, completed_at, completed_by, qa_state, qa_by, qa_at, qa_note, rework_count')
+      .select('id, number, list_id, title, description, status_id, priority, start_date, due_date, time_estimate_minutes, reviewer_id, tags, parent_task_id, created_by, created_at, archived, deleted_at, completed_at, completed_by, qa_state, qa_by, qa_at, qa_note, rework_count, recurrence')
       .eq('id', taskId).maybeSingle()
     if (!t) { setMissing(true); return }
     setTask(t)
@@ -205,6 +206,12 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
     onChanged()
     navigate(`/list/${pick}?task=${task.id}`)
   }
+  async function saveTemplate() {
+    const r = await askText({ title: 'Save as template', label: 'Template name', initial: task!.title, confirmLabel: 'Save template' })
+    if (!r) return
+    const { error } = await supabase.rpc('save_task_template', { p_task: taskId, p_name: r.value })
+    if (error) notify(error.message); else notify(`Saved "${r.value}". Pick it when you create a task.`, 'ok')
+  }
   const trashTask = async () => { if (await askConfirm({ title: 'Move this task to the trash?', body: 'Its subtasks go too. You can restore them from Archive.', confirmLabel: 'Move to trash', danger: true })) setArchive({ deleted_at: new Date().toISOString() }, true) }
 
   // People who worked on it: assignees plus anyone who logged time.
@@ -265,6 +272,8 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
       case 'title': return `renamed the task`
       case 'blocked_by': return `marked this as waiting on ${d.task}`
       case 'unblocked_by': return `removed the wait on ${d.task}`
+      case 'recurred': return `finished a repeating task, so ${d.next} was created for ${d.due}`
+      case 'repeat_of': return `created this as the next repeat of ${d.previous}`
       case 'qa_approved': return `approved this task in QA${d.note ? `: "${d.note}"` : ''}`
       case 'qa_changes': return `sent this task back from QA: "${d.note}"`
       case 'assigned': return `assigned ${name(d.user_id)}`
@@ -290,6 +299,7 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
               {watching ? <><BellRing size={14} aria-hidden />Watching</> : <><Bell size={14} aria-hidden />Watch</>} · {watchers.length}
             </button>
             {canEdit && !task.archived && <button onClick={moveTask} title="Move to another space, folder or list"><FolderInput size={14} aria-hidden />Move</button>}
+            {canEdit && !task.archived && !task.parent_task_id && <button onClick={saveTemplate} title="Save as a template to reuse later"><CopyPlus size={14} aria-hidden />Template</button>}
             {canEdit && !task.archived && <button onClick={() => setArchive({ archived: true }, true)} title="Hide from views, keep everything">Archive</button>}
             {canEdit && task.archived && <button onClick={() => setArchive({ archived: false }, false)}>Restore</button>}
             {!task.deleted_at && canEdit && <button className="danger-link" onClick={trashTask}>Delete</button>}
@@ -325,6 +335,16 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
               {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
+          {!task.parent_task_id && <label>Repeat
+            <select disabled={!canEdit} value={task.recurrence ?? ''} onChange={e => patch({ recurrence: (e.target.value || null) as Full['recurrence'] })}>
+              <option value="">Doesn't repeat</option>
+              <option value="daily">Every day</option>
+              <option value="weekdays">Every weekday (Mon–Fri)</option>
+              <option value="weekly">Every week</option>
+              <option value="monthly">Every month</option>
+            </select>
+            {task.recurrence && <span className="muted small">When it's done, the next one is created{task.due_date ? '' : ' (set a due date to control when)'}.</span>}
+          </label>}
           <label>Tags
             <input disabled={!canEdit} key={`tags-${task.tags.join(',')}`} defaultValue={task.tags.join(', ')} placeholder="design, urgent"
               onBlur={e => { const tags = e.target.value.split(',').map(x => x.trim()).filter(Boolean); if (tags.join(',') !== task.tags.join(',')) patch({ tags }) }} />

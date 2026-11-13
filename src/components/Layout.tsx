@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   Archive, ChevronRight, CircleUserRound, FolderClosed, FolderPlus, Home, LayoutDashboard, List as ListIcon, ListPlus,
   Lock, LogOut, Menu as MenuIcon, Monitor, Moon, Pencil, Plus, Search, Settings, Square, Sun, Timer, Trash2, Users,
-  CheckSquare, FolderInput, BarChart3, History, ExternalLink, MessageSquarePlus, MessagesSquare, Smartphone,
+  CheckSquare, CopyPlus, Gauge, FolderInput, BarChart3, History, ExternalLink, MessageSquarePlus, MessagesSquare, Smartphone,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -120,6 +120,31 @@ export default function Layout({ children }: { children: ReactNode }) {
     if (!await askConfirm({ title: `Delete the list "${l.name}"?`, body: 'Every task, comment, file and time entry in it is deleted for good. This is recorded in the activity log. Archive the list instead if you might need it later.', confirmLabel: 'Delete list', danger: true })) return
     if (await run(supabase.from('lists').delete().eq('id', l.id)) && location.pathname === `/list/${l.id}`) navigate('/')
   }
+  async function saveListTemplate(l: List) {
+    const r = await askText({ title: 'Save list as template', label: 'Template name', initial: l.name, confirmLabel: 'Save template' })
+    if (!r) return
+    const { error } = await supabase.rpc('save_list_template', { p_list: l.id, p_name: r.value })
+    if (error) notify(error.message); else notify(`Saved "${r.value}" with its statuses and tasks`, 'ok')
+  }
+  async function listFromTemplate(spaceId: string) {
+    if (!workspace) return
+    const { data } = await supabase.from('templates').select('id, name').eq('workspace_id', workspace.id).eq('kind', 'list').order('name')
+    if (!data?.length) { notify('No list templates yet. Open a list\'s menu and choose "Save as template" first.'); return }
+    const pick = await askChoice({ title: 'New list from template', confirmLabel: 'Next', initial: data[0].id, options: data.map(t => ({ value: t.id, label: t.name })) })
+    if (!pick) return
+    const fs = folders.filter(f => f.space_id === spaceId)
+    let folder: string | null = null
+    if (fs.length) {
+      const f = await askChoice({ title: 'Put it in a folder?', confirmLabel: 'Next', initial: '', options: [{ value: '', label: 'No folder' }, ...fs.map(x => ({ value: x.id, label: x.name }))] })
+      if (f === null) return
+      folder = f || null
+    }
+    const r = await askText({ title: 'Name the new list', label: 'List name', initial: data.find(t => t.id === pick)!.name, confirmLabel: 'Create list' })
+    if (!r) return
+    const { data: id, error } = await supabase.rpc('use_list_template', { p_template: pick, p_space: spaceId, p_folder: folder, p_name: r.value })
+    if (error) { notify(error.message); return }
+    await refresh(); setOpen(o => ({ ...o, [spaceId]: true })); navigate(`/list/${id}`)
+  }
   async function renameFolder(id: string, current: string) {
     const r = await askText({ title: 'Rename folder', label: 'Folder name', initial: current })
     if (r && r.value !== current) run(supabase.from('folders').update({ name: r.value }).eq('id', id))
@@ -131,6 +156,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       {full && <div className="row-actions"><Menu title="List options" items={[
         { label: 'Rename', icon: <Pencil size={14} />, onClick: () => renameList(l) },
         { label: 'Move to folder', icon: <FolderInput size={14} />, onClick: () => moveList(l) },
+        { label: 'Save as template', icon: <CopyPlus size={14} />, onClick: () => saveListTemplate(l) },
         'sep',
         { label: 'Archive list', icon: <Archive size={14} />, onClick: () => archiveList(l) },
         admin ? { label: 'Delete list', icon: <Trash2 size={14} />, onClick: () => deleteList(l), danger: true } : null,
@@ -159,6 +185,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             {admin && <>
               <div className="nav-label">Admin</div>
               <NavLink to="/report" className="nav-item"><BarChart3 size={17} aria-hidden />Team report</NavLink>
+              <NavLink to="/workload" className="nav-item"><Gauge size={17} aria-hidden />Workload</NavLink>
               <NavLink to="/members" className="nav-item"><Users size={17} aria-hidden />Members</NavLink>
               <NavLink to="/feedback" className="nav-item"><MessagesSquare size={17} aria-hidden />Feedback{newFeedback > 0 && <span className="nav-count" aria-label={`${newFeedback} new`}>{newFeedback}</span>}</NavLink>
               <NavLink to="/log" className="nav-item"><History size={17} aria-hidden />Activity log</NavLink>
@@ -195,6 +222,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                         <Menu title="Add to space" icon={<Plus size={15} />} items={[
                           { label: 'New list', icon: <ListPlus size={14} />, onClick: () => addList(sp.id) },
                           { label: 'New folder', icon: <FolderPlus size={14} />, onClick: () => addFolder(sp.id) },
+                          { label: 'New list from template', icon: <CopyPlus size={14} />, onClick: () => listFromTemplate(sp.id) },
                         ]} />
                       </div>}
                     </div>
