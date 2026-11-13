@@ -35,6 +35,7 @@ export default function MyTasks() {
   const [tasks, setTasks] = useState<MyTask[]>([])
   const [comments, setComments] = useState<MyComment[]>([])
   const [mentions, setMentions] = useState<MyComment[]>([])
+  const [toReview, setToReview] = useState<MyTask[]>([])
   const [showDone, setShowDone] = useState(false)
   const [statuses, setStatuses] = useState<Status[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -42,7 +43,7 @@ export default function MyTasks() {
 
   const load = useCallback(async () => {
     const since = new Date(Date.now() - 14 * 86400000).toISOString()
-    const [{ data: tk }, { data: cm }, { data: mn }] = await Promise.all([
+    const [{ data: tk }, { data: cm }, { data: mn }, { data: rv }] = await Promise.all([
       supabase.from('tasks')
         .select('id, number, title, priority, due_date, list_id, space_id, status:statuses(name, color, is_done), task_assignees!inner(user_id), list:lists!inner(archived)')
         .eq('task_assignees.user_id', uid).eq('archived', false).eq('list.archived', false).order('due_date', { nullsFirst: false }).limit(500),
@@ -52,7 +53,11 @@ export default function MyTasks() {
       supabase.from('comments')
         .select('id, body, task_id, space_id, created_at, task:tasks(title, number, list_id)')
         .like('body', `%](${uid})%`).neq('user_id', uid).gte('created_at', since).order('created_at', { ascending: false }).limit(30),
+      supabase.from('tasks')
+        .select('id, number, title, priority, due_date, list_id, space_id, status:statuses(name, color, is_done), list:lists!inner(archived)')
+        .eq('reviewer_id', uid).eq('qa_state', 'pending').eq('archived', false).eq('list.archived', false).order('due_date', { nullsFirst: false }).limit(200),
     ])
+    setToReview((rv ?? []) as unknown as MyTask[])
     setTasks((tk ?? []) as unknown as MyTask[])
     setComments((cm ?? []) as unknown as MyComment[])
     setMentions(((mn ?? []) as unknown as MyComment[]).filter(m => !(cm ?? []).some(c => c.id === m.id)))
@@ -69,7 +74,7 @@ export default function MyTasks() {
     return () => { supabase.removeChannel(ch) }
   }, [uid, load])
 
-  const open = tasks.find(t => t.id === openTask)
+  const open = tasks.find(t => t.id === openTask) ?? toReview.find(t => t.id === openTask)
   const allComments = [...comments, ...mentions]
   const openSpace = open?.space_id ?? allComments.find(c => c.task_id === openTask)?.space_id
   const openList = open?.list_id ?? allComments.find(c => c.task_id === openTask)?.task?.list_id
@@ -139,7 +144,23 @@ export default function MyTasks() {
         </div>
       )}
 
-      {loaded && openCount === 0 && comments.length === 0 && mentions.length === 0 && !showDone && (
+      {toReview.length > 0 && (
+        <div className="group">
+          <div className="group-head"><b>Waiting for your QA</b><span className="count">{toReview.length}</span></div>
+          <div className="group-body"><table className="tasks"><tbody>
+            {toReview.map(t => (
+              <tr key={t.id} className="task-row" onClick={() => setTask(t.id)}>
+                <td className="title"><div className="title-cell"><span className="status-dot" style={{ color: t.status?.color ?? 'var(--faint)' }} aria-hidden /><span className="t">{t.title}</span><span className="tasknum">#{t.number}</span></div></td>
+                <td>{t.status && <span className="status-chip" style={{ background: t.status.color }}>{t.status.name}</span>}</td>
+                <td className="muted small"><Link to={`/list/${t.list_id}`} onClick={e => e.stopPropagation()}>{where(t)}</Link></td>
+                <td className={`small nowrap tasknum-col ${isOverdue(t.due_date) ? 'overdue' : 'muted'}`}>{fmtDate(t.due_date)}</td>
+              </tr>
+            ))}
+          </tbody></table></div>
+        </div>
+      )}
+
+      {loaded && openCount === 0 && comments.length === 0 && mentions.length === 0 && toReview.length === 0 && !showDone && (
         <div className="card empty-state"><span className="ic"><CheckCheck size={20} aria-hidden /></span><h3>You're all caught up</h3><p>Nothing is assigned to you right now.</p></div>
       )}
 

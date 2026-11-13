@@ -45,7 +45,9 @@ export default function App() {
           <Route path="/log" element={<ActivityLog />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/feedback" element={<Feedback />} />
-          <Route path="/list/:id" element={<ListPage />} />
+          <Route path="/list/:id" element={<ListPage key="list" />} />
+          <Route path="/folder/:id" element={<ListPage key="folder" kind="folder" />} />
+          <Route path="/space/:id" element={<ListPage key="space" kind="space" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

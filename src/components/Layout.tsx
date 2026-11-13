@@ -179,12 +179,14 @@ export default function Layout({ children }: { children: ReactNode }) {
                 return (
                   <div key={sp.id} className="space">
                     <div className="tree-row">
-                      <button className="tree-toggle" aria-expanded={isOpen} onClick={() => setOpen(o => ({ ...o, [sp.id]: !isOpen }))}>
+                      <button className="tree-chev" aria-expanded={isOpen} aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${sp.name}`} onClick={() => setOpen(o => ({ ...o, [sp.id]: !isOpen }))}>
                         <ChevronRight size={14} className={`chev ${isOpen ? 'open' : ''}`} aria-hidden />
+                      </button>
+                      <NavLink to={`/space/${sp.id}`} className="tree-toggle tree-link" title={`All tasks in ${sp.name}`}>
                         <SpaceBadge space={sp} />
                         <span className="space-name">{sp.name}</span>
                         {sp.is_private && <Lock size={12} className="lock" aria-label="Private" />}
-                      </button>
+                      </NavLink>
                       {full && <div className="row-actions">
                         <Menu title="Space options" items={[
                           { label: 'Space settings', icon: <Settings size={14} />, onClick: () => setSettingsFor(sp.id) },
@@ -203,11 +205,13 @@ export default function Layout({ children }: { children: ReactNode }) {
                           return (
                             <div key={f.id} className="folder">
                               <div className="tree-row">
-                                <button className="tree-toggle folder-toggle" aria-expanded={fOpen} onClick={() => setOpen(o => ({ ...o, [f.id]: !fOpen }))}>
+                                <button className="tree-chev folder-chev" aria-expanded={fOpen} aria-label={`${fOpen ? 'Collapse' : 'Expand'} ${f.name}`} onClick={() => setOpen(o => ({ ...o, [f.id]: !fOpen }))}>
                                   <ChevronRight size={13} className={`chev ${fOpen ? 'open' : ''}`} aria-hidden />
+                                </button>
+                                <NavLink to={`/folder/${f.id}`} className="tree-toggle folder-toggle tree-link" title={`All tasks in ${f.name}`}>
                                   <FolderClosed size={15} className="folder-ic" aria-hidden />
                                   <span className="space-name">{f.name}</span>
-                                </button>
+                                </NavLink>
                                 {full && <div className="row-actions"><Menu title="Folder options" items={[
                                   { label: 'New list in folder', icon: <ListPlus size={14} />, onClick: () => addList(sp.id, f.id) },
                                   { label: 'Rename', icon: <Pencil size={14} />, onClick: () => renameFolder(f.id, f.name) },

@@ -1,9 +1,10 @@
 import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
-import { CalendarDays, ChevronDown, ChevronRight, Flag, Inbox, LayoutGrid, List as ListIcon, ListChecks, Network, Plus, Settings2, Eye } from 'lucide-react'
+import { CalendarDays, ChevronDown, ChevronRight, Flag, FolderClosed, Inbox, LayoutGrid, List as ListIcon, ListChecks, Network, Plus, Settings2, Eye } from 'lucide-react'
 import { SpaceBadge } from '../components/Layout'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useWorkspace } from '../lib/workspace'
-import { fmtDate, isOverdue, PRIORITIES, useListData, type Task } from '../lib/listData'
+import { fmtDate, isOverdue, PRIORITIES, useListData, type Scope, type Task } from '../lib/listData'
+import QaBadge from '../components/QaBadge'
 import Avatar from '../components/Avatar'
 import TaskPanel from '../components/TaskPanel'
 import MindMap from '../components/MindMap'
@@ -15,20 +16,30 @@ import { useAuth } from '../lib/auth'
 import { applyFilters, groupTasks, useListFilters } from '../lib/filters'
 import { askChoice } from '../components/Dialogs'
 
-export default function ListPage() {
+/** One list, or every list in a folder or space (ClickUp's space and folder views). */
+export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
   const { id } = useParams()
   const [params, setParams] = useSearchParams()
-  const { lists, spaces, level, people } = useWorkspace()
-  const list = lists.find(l => l.id === id)
-  const space = spaces.find(s => s.id === list?.space_id)
-  const canEdit = list ? level(list.space_id) >= 3 : false
-  const { statuses, tasks, update, create, load } = useListData(id)
+  const { lists, spaces, folders, level, people, loading } = useWorkspace()
+  const list = kind === 'list' ? lists.find(l => l.id === id) : undefined
+  const folder = kind === 'folder' ? folders.find(x => x.id === id) : undefined
+  const spaceId = kind === 'space' ? id : list?.space_id ?? folder?.space_id
+  const space = spaces.find(s => s.id === spaceId)
+  const merged = kind !== 'list'
+  const scopeLists = kind === 'list' ? (list ? [list] : []) : lists.filter(l => kind === 'space' ? l.space_id === id : l.folder_id === id)
+  const listLabel = (lid: string) => {
+    const l = lists.find(x => x.id === lid)
+    const fo = kind === 'space' && l?.folder_id ? folders.find(x => x.id === l.folder_id) : undefined
+    return l ? (fo ? `${fo.name} / ${l.name}` : l.name) : ''
+  }
+  const canEdit = spaceId ? level(spaceId) >= 3 : false
+  const { statuses, tasks, update, create, load, statusesOf } = useListData(id ? { kind, id } : undefined)
   const { session } = useAuth()
-  const [f, setF, clearF] = useListFilters(id)
+  const [f, setF, clearF] = useListFilters(`${kind === 'list' ? '' : kind + ':'}${id}`)
   const shown = applyFilters(tasks, f, session!.user.id, statuses)
   const doneIds = new Set(statuses.filter(s => s.is_done).map(s => s.id))
   const v = params.get('view')
-  const view = v === 'board' || v === 'map' || v === 'calendar' ? v : 'list'
+  const view = v === 'board' || (v === 'map' && !merged) || v === 'calendar' ? v : 'list'
   const openTask = params.get('task')
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [dragging, setDragging] = useState<string | null>(null)
@@ -115,10 +126,12 @@ export default function ListPage() {
               </button>
             )}
             <span className="tasknum">#{t.number}</span>
+            {merged && depth === 0 && <span className="list-tag" title="List">{listLabel(t.list_id)}</span>}
           </div>
         </td>
         <td className="avatars-cell"><span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} id={a} name={person(a)!.name} size={24} />)}</span>
           {t.assignees.length === 0 && <span className="muted small">—</span>}</td>
+        <td className="avatars-cell"><QaBadge reviewer={t.reviewer_id} state={t.qa_state} /></td>
         <td onClick={e => e.stopPropagation()}>
           <input type="date" aria-label="Due date" className={`cell-ctl ${t.due_date ? '' : 'empty'} ${isOverdue(t.due_date) && !(t.status_id && doneIds.has(t.status_id)) ? 'overdue' : ''}`} disabled={!canEdit} value={t.due_date ?? ''} onChange={e => update(t.id, { due_date: e.target.value || null })} />
         </td>
@@ -136,16 +149,18 @@ export default function ListPage() {
     return out
   }
   const thead = (
-    <thead><tr><th>Name</th><th>Assignee</th><th>Due date</th><th>Priority</th></tr></thead>
+    <thead><tr><th>Name</th><th>Assignee</th><th>QA</th><th>Due date</th><th>Priority</th></tr></thead>
   )
-  const addRow = (statusId: string) => canEdit && (
+  const addRow = (statusId: string) => canEdit && !merged && (
     <form className="add-row" onSubmit={e => add(e, statusId)}>
       <Plus size={14} aria-hidden />
       <input placeholder="Add task" aria-label="New task name" value={draft[statusId] ?? ''} onChange={e => setDraft(d => ({ ...d, [statusId]: e.target.value }))} />
     </form>
   )
 
-  if (!list) return <p className="muted">List not found, or you don't have access to it.</p>
+  const title = list?.name ?? folder?.name ?? space?.name
+  if (loading) return <p className="muted">Loading…</p>
+  if (!title || !spaceId || (kind === 'space' && level(spaceId) < 1)) return <p className="muted">Not found, or you don't have access to it.</p>
 
   const meta = (t: Task) => (
     <>
@@ -157,7 +172,10 @@ export default function ListPage() {
           <ListChecks size={12} aria-hidden />{t.subtasks_done}/{t.subtasks}
         </button>
       )}
-      <span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} id={a} name={person(a)!.name} size={22} />)}</span>
+      <span className="card-people">
+        <span className="avatars">{t.assignees.map(a => person(a) && <Avatar key={a} id={a} name={person(a)!.name} size={22} />)}</span>
+        <QaBadge reviewer={t.reviewer_id} state={t.qa_state} size={22} />
+      </span>
     </>
   )
   const views = [
@@ -165,19 +183,22 @@ export default function ListPage() {
     { key: 'board', label: 'Board', icon: <LayoutGrid size={15} aria-hidden /> },
     { key: 'calendar', label: 'Calendar', icon: <CalendarDays size={15} aria-hidden /> },
     { key: 'map', label: 'Mind map', icon: <Network size={15} aria-hidden /> },
-  ] as const
+  ].filter(vw => !merged || vw.key !== 'map')
 
   return (
     <div className="stack">
       <div className="list-head">
         <div className="crumbs">
           {space && <SpaceBadge space={space} size={16} />}<span>{space?.name}</span>
-          <ChevronRight size={13} aria-hidden /><span>{list.name}</span>
+          {folder && <><ChevronRight size={13} aria-hidden /><FolderClosed size={13} aria-hidden /><span>{folder.name}</span></>}
+          {list && <>{list.folder_id && folders.find(x => x.id === list.folder_id) && <><ChevronRight size={13} aria-hidden /><span>{folders.find(x => x.id === list.folder_id)!.name}</span></>}
+            <ChevronRight size={13} aria-hidden /><span>{list.name}</span></>}
         </div>
         <div className="list-title-row">
-          <h1>{list.name}</h1>
+          <h1>{title}</h1>
+          {merged && <span className="pill">{kind === 'space' ? 'Everything in this space' : 'Everything in this folder'} · {scopeLists.length} {scopeLists.length === 1 ? 'list' : 'lists'}</span>}
           {!canEdit && <span className="pill"><Eye size={12} aria-hidden />View only</span>}
-          {canEdit && view !== 'map' && statuses[0] && (
+          {canEdit && view !== 'map' && (merged ? scopeLists.length > 0 : statuses[0]) && (
             <button className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden />Task</button>
           )}
         </div>
@@ -188,7 +209,7 @@ export default function ListPage() {
           ))}
           <span className="spacer" />
           {view !== 'map' && <ViewOptions f={f} set={setF} showGroup={view === 'list'} showSort={view !== 'calendar'} />}
-          {level(list.space_id) >= 4 && <button className="btn ghost small" onClick={() => setEditStatuses(true)}><Settings2 size={14} aria-hidden />Statuses</button>}
+          {list && level(list.space_id) >= 4 && <button className="btn ghost small" onClick={() => setEditStatuses(true)}><Settings2 size={14} aria-hidden />Statuses</button>}
         </div>
       </div>
 
@@ -196,13 +217,14 @@ export default function ListPage() {
         <ListToolbar f={f} set={setF} clear={clearF} people={people} />
       )}
       {view === 'list' && tasks.length > 0 && shown.length === 0 && <p className="muted">No tasks match these filters.</p>}
-      {(view === 'list' || view === 'board') && tasks.length === 0 && !canEdit && (
-        <div className="card empty-state"><span className="ic"><Inbox size={20} aria-hidden /></span><h3>No tasks yet</h3><p>Tasks added to this list will show up here.</p></div>
+      {(view === 'list' || view === 'board') && tasks.length === 0 && (!canEdit || merged) && (
+        <div className="card empty-state"><span className="ic"><Inbox size={20} aria-hidden /></span><h3>No tasks yet</h3>
+          <p>{merged ? (scopeLists.length ? `Tasks from every list in this ${kind} show up here.` : `This ${kind} has no lists yet.`) : 'Tasks added to this list will show up here.'}</p></div>
       )}
 
       {view === 'calendar' ? (
         <CalendarView tasks={shown} statuses={statuses} canEdit={canEdit} onOpen={tid => setParam('task', tid)} onMove={(tid, due) => update(tid, { due_date: due })} />
-      ) : view === 'map' ? (
+      ) : view === 'map' && list ? (
         <MindMap listId={list.id} listName={list.name} statuses={statuses} canEdit={canEdit} onOpen={tid => setParam('task', tid)} />
       ) : view === 'list' && f.group !== 'status' ? groupTasks(shown, f.group, uid => person(uid)?.name ?? 'Former member').map(g => (
         <div key={g.key} className="group">
@@ -253,6 +275,7 @@ export default function ListPage() {
                       onDrop={e => drop(e, st.id, t)}
                       onClick={() => setParam('task', t.id)}>
                       <div className="card-title">{t.title}</div>
+                      {merged && <div className="card-list">{listLabel(t.list_id)}</div>}
                       <div className="card-meta">{canEdit && statusButton(t, true)}<span className="tasknum">#{t.number}</span>{meta(t)}</div>
                       {openSubs[t.id] && t.subs.length > 0 && (
                         <ul className="card-subs">
@@ -277,16 +300,18 @@ export default function ListPage() {
         </div>
       )}
 
-      {creating && list && (
-        <CreateTask listId={list.id} listName={list.name} spaceId={list.space_id} statuses={statuses}
+      {creating && (list || scopeLists[0]) && (
+        <CreateTask listId={(list ?? scopeLists[0]).id} listName={(list ?? scopeLists[0]).name} spaceId={spaceId} statuses={list ? statuses : statusesOf(scopeLists[0].id)}
+          listChoices={merged ? scopeLists.map(l => ({ id: l.id, label: listLabel(l.id) })) : undefined}
+          statusesFor={merged ? statusesOf : undefined}
           onClose={() => setCreating(false)}
           onCreated={(tid, open) => { load(); if (open) { setCreating(false); setParam('task', tid) } }} />
       )}
       {editStatuses && list && (
         <StatusEditor listId={list.id} statuses={statuses} tasks={tasks} onClose={() => setEditStatuses(false)} onChanged={load} />
       )}
-      {openTask && list && (
-        <TaskPanel taskId={openTask} spaceId={list.space_id} statuses={statuses}
+      {openTask && (
+        <TaskPanel taskId={openTask} spaceId={spaceId} statuses={list ? statuses : []}
           onClose={() => setParam('task', null)} onChanged={load} onOpen={tid => setParam('task', tid)} />
       )}
     </div>

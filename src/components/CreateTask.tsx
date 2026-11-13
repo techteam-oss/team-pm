@@ -8,10 +8,14 @@ import Avatar from './Avatar'
 import { notify } from './Dialogs'
 
 /** ClickUp-style "Create task" dialog: name, description and every property in one go. */
-export default function CreateTask({ listId, listName, spaceId, statuses, initialStatus, onClose, onCreated }: {
+export default function CreateTask({ listId: initialList, listName, spaceId, statuses: initialStatuses, initialStatus, listChoices, statusesFor, onClose, onCreated }: {
   listId: string; listName: string; spaceId: string; statuses: Status[]; initialStatus?: string
+  /** In a folder or space view: the lists the task can go into, and their statuses. */
+  listChoices?: { id: string; label: string }[]; statusesFor?: (listId: string) => Status[]
   onClose: () => void; onCreated: (taskId: string, open: boolean) => void
 }) {
+  const [listId, setListId] = useState(initialList)
+  const statuses = statusesFor ? statusesFor(listId) : initialStatuses
   const { people, level } = useWorkspace()
   const { start } = useTimer()
   const [title, setTitle] = useState('')
@@ -33,6 +37,13 @@ export default function CreateTask({ listId, listName, spaceId, statuses, initia
   const status = statuses.find(s => s.id === statusId)
 
   useEffect(() => { titleRef.current?.focus() }, [])
+  // Switching list: keep the status by name if the new list has it.
+  function pickList(id: string) {
+    const now = statuses.find(s => s.id === statusId)
+    const next = statusesFor ? statusesFor(id) : []
+    setListId(id)
+    setStatusId((next.find(s => s.name.toLowerCase() === now?.name.toLowerCase()) ?? next.find(s => !s.is_done) ?? next[0])?.id ?? '')
+  }
   useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', esc)
@@ -71,7 +82,13 @@ export default function CreateTask({ listId, listName, spaceId, statuses, initia
     <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <form className="modal create-task" role="dialog" aria-modal="true" aria-label="Create task" onSubmit={submit}>
         <div className="modal-head">
-          <div className="crumbs"><Hash size={13} aria-hidden />New task in <b style={{ color: 'var(--text)' }}>{listName}</b></div>
+          {listChoices && listChoices.length > 1 ? (
+            <label className="crumbs"><Hash size={13} aria-hidden />New task in
+              <select aria-label="List" value={listId} onChange={e => pickList(e.target.value)}>
+                {listChoices.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+              </select>
+            </label>
+          ) : <div className="crumbs"><Hash size={13} aria-hidden />New task in <b style={{ color: 'var(--text)' }}>{listChoices?.[0]?.label ?? listName}</b></div>}
           <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><X size={16} /></button>
         </div>
 
@@ -99,7 +116,7 @@ export default function CreateTask({ listId, listName, spaceId, statuses, initia
             <input type="number" min="0" step="0.25" placeholder="e.g. 2.5" value={estimate} onChange={e => setEstimate(e.target.value)} />
           </label>
           <label className="ct-prop"><span><Tag size={14} aria-hidden />Tags</span>
-            <input placeholder="design, client" value={tags} onChange={e => setTags(e.target.value)} />
+            <input placeholder="design, urgent" value={tags} onChange={e => setTags(e.target.value)} />
           </label>
         </div>
 

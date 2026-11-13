@@ -126,7 +126,7 @@ export default function Home() {
           <section className="card home-card">
             <header><h2><Sparkles size={16} aria-hidden />Get your team going</h2></header>
             <ul className="home-list">
-              <li><div className="li"><span className="step-n">1</span><span className="grow wrap">Create a space for each team or client</span>{spaces.length > 0 && <CheckCircle2 size={15} className="notice" aria-label="done" />}</div></li>
+              <li><div className="li"><span className="step-n">1</span><span className="grow wrap">Create a space for each team or department</span>{spaces.length > 0 && <CheckCircle2 size={15} className="notice" aria-label="done" />}</div></li>
               <li><div className="li"><span className="step-n">2</span><span className="grow wrap">Add lists inside it for projects</span>{lists.length > 0 && <CheckCircle2 size={15} className="notice" aria-label="done" />}</div></li>
               <li><Link to="/members"><span className="step-n">3</span><span className="grow wrap">Invite people and choose their access</span><Users size={15} aria-hidden /></Link></li>
             </ul>

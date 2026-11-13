@@ -13,6 +13,8 @@ export const EMAIL_KINDS: { kind: string; label: string; on: boolean; adminOnly?
   { kind: 'comment_assigned', label: 'A comment is assigned to me', on: true },
   { kind: 'qa_review', label: 'I am made QA reviewer', on: true },
   { kind: 'ready_for_qa', label: 'A task I review is done and ready for QA', on: true },
+  { kind: 'qa_approved', label: 'QA approves my task', on: true },
+  { kind: 'qa_changes', label: 'QA sends my task back for changes', on: true },
   { kind: 'estimate_exceeded', label: 'A task goes over its time estimate', on: true },
   { kind: 'due_today', label: 'My task is due today (9 AM)', on: true },
   { kind: 'overdue', label: 'My task is overdue (9 AM)', on: true },
