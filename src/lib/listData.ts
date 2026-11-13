@@ -8,6 +8,8 @@ export type Task = {
   id: string; number: number; title: string; status_id: string | null; priority: string
   due_date: string | null; start_date: string | null; position: number; parent_task_id: string | null
   list_id: string; reviewer_id: string | null; qa_state: QaState
+  /** Waits on at least one task that is not done yet. */
+  blocked: boolean
   assignees: string[]; subtasks: number; subtasks_done: number
   /** Direct subtasks, in position order (only filled on top-level tasks). */
   subs: Task[]
@@ -67,8 +69,17 @@ export function useListData(scope: Scope | string | undefined) {
       mapStatus = sid => (sid && byId.get(sid)) || null
     }
     const done = new Set(statusList.filter(s => s.is_done).map(s => s.id))
-    type Row = Omit<Task, 'assignees' | 'subtasks' | 'subtasks_done' | 'subs'> & { task_assignees: { user_id: string }[]; list?: unknown }
-    const all = ((tk ?? []) as unknown as Row[]).map(({ list: _l, ...t }) => ({ ...t, status_id: mapStatus(t.status_id) }))
+    type Row = Omit<Task, 'assignees' | 'subtasks' | 'subtasks_done' | 'subs' | 'blocked'> & { task_assignees: { user_id: string }[]; list?: unknown }
+    const rows = (tk ?? []) as unknown as Row[]
+    // Which tasks still wait on an unfinished task.
+    const blocked = new Set<string>()
+    if (rows.length) {
+      const dq = supabase.from('task_dependencies').select('task_id, blocker:tasks!task_dependencies_blocked_by_id_fkey(archived, status:statuses(is_done))')
+      const { data: deps } = await (kind === 'space' ? dq.eq('space_id', id) : dq.in('task_id', rows.map(r => r.id)))
+      for (const d of (deps ?? []) as unknown as { task_id: string; blocker: { archived: boolean; status: { is_done: boolean } | null } | null }[])
+        if (d.blocker && !d.blocker.archived && !d.blocker.status?.is_done) blocked.add(d.task_id)
+    }
+    const all = rows.map(({ list: _l, ...t }) => ({ ...t, status_id: mapStatus(t.status_id), blocked: blocked.has(t.id) }))
     const shape = ({ task_assignees, ...t }: (typeof all)[number]): Task => {
       const kids = all.filter(s => s.parent_task_id === t.id)
       return { ...t, assignees: task_assignees.map(a => a.user_id), subtasks: kids.length,
@@ -89,6 +100,7 @@ export function useListData(scope: Scope | string | undefined) {
     const ch = supabase.channel(`${kind}-${id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', ...(filter ? { filter } : {}) }, () => load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_dependencies' }, () => load())
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [kind, id, load])

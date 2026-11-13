@@ -646,3 +646,23 @@ body { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-a
 .qa-pill.changes { color: var(--danger); border-color: currentColor; }
 @media (max-width: 520px) { .work-qa dl { grid-template-columns: 1fr; gap: 4px; } .work-qa dt { margin-top: 6px; } }
 .card-meta .card-people { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+.meter { display: flex; flex-direction: column; gap: 6px; }
+.meter-bar { height: 8px; border-radius: 999px; background: var(--subtle); border: 1px solid var(--border); overflow: hidden; }
+.meter-bar span { display: block; height: 100%; border-radius: 999px; background: var(--ok); }
+.meter-bar.warn span { background: var(--warn); } .meter-bar.danger span { background: var(--danger); }
+p.warn { color: var(--warn); } p.danger { color: var(--danger); }
+.meta.blocked { color: var(--danger); font-weight: 600; }
+.pill.danger-pill { color: var(--danger); border-color: currentColor; background: transparent; }
+.dep-add { gap: 6px; } .dep-add .inline-add { flex: 1; }
+/* Bulk select */
+.sel-box { width: 16px; height: 16px; flex: none; margin: 0; accent-color: var(--accent); opacity: 0; transition: opacity .1s; cursor: pointer; }
+tr.task-row:hover .sel-box, .selecting .sel-box, .sel-box:focus-visible, .group-head:hover .sel-box { opacity: 1; }
+.sel-all { margin-left: auto; }
+@media (hover: none) { .sel-box { opacity: 1; } }
+.bulk-bar { position: sticky; bottom: 12px; z-index: 40; align-self: center; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; padding: 8px 10px; box-shadow: var(--shadow-lg); max-width: 100%; }
+.bulk-bar > b { padding: 0 6px; white-space: nowrap; }
+.bulk-bar button { display: inline-flex; align-items: center; gap: 6px; }
+.bulk-date { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; font-size: 13px; padding-left: 4px; margin: 0; font-weight: 500; }
+.bulk-date input { width: auto; padding: 5px 8px; }
+@media (max-width: 600px) { .scope-pill { display: none !important; } }

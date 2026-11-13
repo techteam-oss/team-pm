@@ -1,10 +1,11 @@
 import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
-import { CalendarDays, ChevronDown, ChevronRight, Flag, FolderClosed, Inbox, LayoutGrid, List as ListIcon, ListChecks, Network, Plus, Settings2, Eye } from 'lucide-react'
+import { Ban, CalendarDays, ChevronDown, ChevronRight, Flag, FolderClosed, Inbox, LayoutGrid, List as ListIcon, ListChecks, Network, Plus, Settings2, Eye } from 'lucide-react'
 import { SpaceBadge } from '../components/Layout'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useWorkspace } from '../lib/workspace'
 import { fmtDate, isOverdue, PRIORITIES, useListData, type Scope, type Task } from '../lib/listData'
 import QaBadge from '../components/QaBadge'
+import BulkBar from '../components/BulkBar'
 import Avatar from '../components/Avatar'
 import TaskPanel from '../components/TaskPanel'
 import MindMap from '../components/MindMap'
@@ -48,6 +49,8 @@ export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [creating, setCreating] = useState(false)
   const [openSubs, setOpenSubs] = useState<Record<string, boolean>>({})
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const togglePick = (ids: string[], on: boolean) => setPicked(p => { const n = new Set(p); for (const x of ids) { if (on) n.add(x); else n.delete(x) } return n })
   const toggle = (k: string) => setCollapsed(c => ({ ...c, [k]: !c[k] }))
   const statusOf = (t: Task) => statuses.find(s => s.id === t.status_id)
 
@@ -111,6 +114,8 @@ export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
       <tr key={t.id} className={`task-row ${depth ? 'sub-row' : ''}`} onClick={() => setParam('task', t.id)}>
         <td className="title">
           <div className="title-cell" style={depth ? { paddingLeft: 28 * depth } : undefined}>
+            {canEdit && <input type="checkbox" className="sel-box" aria-label={`Select ${t.title}`} checked={picked.has(t.id)}
+              onClick={e => e.stopPropagation()} onChange={e => togglePick([t.id], e.target.checked)} />}
             {t.subs.length > 0 ? (
               <button className="icon-btn sub-toggle" aria-expanded={expanded} aria-label={`${expanded ? 'Hide' : 'Show'} ${t.subs.length} subtasks of ${t.title}`}
                 onClick={e => { e.stopPropagation(); setOpenSubs(o => ({ ...o, [t.id]: !expanded })) }}>
@@ -126,6 +131,7 @@ export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
               </button>
             )}
             <span className="tasknum">#{t.number}</span>
+            {t.blocked && <span className="meta blocked" title="Waiting on another task"><Ban size={12} aria-hidden />Blocked</span>}
             {merged && depth === 0 && <span className="list-tag" title="List">{listLabel(t.list_id)}</span>}
           </div>
         </td>
@@ -164,6 +170,7 @@ export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
 
   const meta = (t: Task) => (
     <>
+      {t.blocked && <span className="meta blocked" title="Waiting on another task"><Ban size={12} aria-hidden />Blocked</span>}
       {t.priority !== 'normal' && <span className={`meta prio-${t.priority}`}><Flag size={12} fill={t.priority === 'low' ? 'none' : 'currentColor'} aria-hidden />{t.priority[0].toUpperCase() + t.priority.slice(1)}</span>}
       {t.due_date && <span className={`meta ${isOverdue(t.due_date) && !(t.status_id && doneIds.has(t.status_id)) ? 'overdue' : ''}`}><CalendarDays size={12} aria-hidden />{fmtDate(t.due_date)}</span>}
       {t.subtasks > 0 && (
@@ -186,7 +193,7 @@ export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
   ].filter(vw => !merged || vw.key !== 'map')
 
   return (
-    <div className="stack">
+    <div className={`stack ${picked.size ? 'selecting' : ''}`}>
       <div className="list-head">
         <div className="crumbs">
           {space && <SpaceBadge space={space} size={16} />}<span>{space?.name}</span>
@@ -196,7 +203,7 @@ export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
         </div>
         <div className="list-title-row">
           <h1>{title}</h1>
-          {merged && <span className="pill">{kind === 'space' ? 'Everything in this space' : 'Everything in this folder'} · {scopeLists.length} {scopeLists.length === 1 ? 'list' : 'lists'}</span>}
+          {merged && <span className="pill scope-pill">{kind === 'space' ? 'Everything in this space' : 'Everything in this folder'} · {scopeLists.length} {scopeLists.length === 1 ? 'list' : 'lists'}</span>}
           {!canEdit && <span className="pill"><Eye size={12} aria-hidden />View only</span>}
           {canEdit && view !== 'map' && (merged ? scopeLists.length > 0 : statuses[0]) && (
             <button className="primary" onClick={() => setCreating(true)}><Plus size={15} aria-hidden />Task</button>
@@ -241,6 +248,8 @@ export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
             <div className="group-head">
               <button className="icon-btn group-toggle" aria-expanded={!collapsed[st.id]} aria-label={`Toggle ${st.name}`} onClick={() => toggle(st.id)}><ChevronRight size={14} className={`chev ${collapsed[st.id] ? '' : 'open'}`} /></button>
               <span className="status-chip" style={{ background: st.color }}>{st.name}</span><span className="count">{rows.length}</span>
+              {canEdit && rows.length > 0 && <input type="checkbox" className="sel-box sel-all" aria-label={`Select all in ${st.name}`}
+                checked={rows.every(r => picked.has(r.id))} onChange={e => togglePick(rows.map(r => r.id), e.target.checked)} />}
             </div>
             {!collapsed[st.id] && (
               <div className="group-body" data-add={st.id}>
@@ -300,6 +309,10 @@ export default function ListPage({ kind = 'list' }: { kind?: Scope['kind'] }) {
         </div>
       )}
 
+      {view === 'list' && picked.size > 0 && (
+        <BulkBar ids={[...picked]} tasks={tasks} statuses={statuses} update={update}
+          onDone={() => { setPicked(new Set()); load() }} onClear={() => setPicked(new Set())} />
+      )}
       {creating && (list || scopeLists[0]) && (
         <CreateTask listId={(list ?? scopeLists[0]).id} listName={(list ?? scopeLists[0]).name} spaceId={spaceId} statuses={list ? statuses : statusesOf(scopeLists[0].id)}
           listChoices={merged ? scopeLists.map(l => ({ id: l.id, label: listLabel(l.id) })) : undefined}

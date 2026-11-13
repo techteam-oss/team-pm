@@ -11,6 +11,7 @@ import { askChoice, askConfirm, askText, notify } from './Dialogs'
 import { Bell, BellRing, Check, FolderInput, Paperclip, ShieldCheck, Undo2, X } from 'lucide-react'
 import { fmtMinutes } from '../lib/time'
 import { QA_LABEL } from './QaBadge'
+import { shrinkImage } from '../lib/image'
 import { useNavigate } from 'react-router-dom'
 
 type Full = {
@@ -24,6 +25,7 @@ type Sub = { id: string; number: number; title: string; status_id: string | null
 type Check = { id: string; title: string; done: boolean; position: number }
 type Comment = { id: string; user_id: string; body: string; assigned_to: string | null; resolved: boolean; created_at: string; comment_reactions: { user_id: string; emoji: string }[] }
 type Activity = { id: number; user_id: string | null; action: string; details: Record<string, unknown>; created_at: string }
+type Dep = { id: string; number: number; title: string; list_id: string; archived: boolean; status: { name: string; color: string; is_done: boolean } | null }
 type Attachment = { id: string; storage_path: string; file_name: string; size_bytes: number; uploaded_by: string }
 
 const EMOJIS = ['👍', '❤️', '🎉', '✅']
@@ -63,6 +65,9 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
   const [missing, setMissing] = useState(false)
   const [ownStatuses, setOwnStatuses] = useState<Status[]>([])
   const [logged, setLogged] = useState<{ user_id: string; minutes: number }[]>([])
+  const [waitingOn, setWaitingOn] = useState<Dep[]>([])
+  const [blocking, setBlocking] = useState<Dep[]>([])
+  const [depInput, setDepInput] = useState('')
   const statuses = ownStatuses.length ? ownStatuses : givenStatuses
 
   const load = useCallback(async () => {
@@ -71,7 +76,8 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
       .eq('id', taskId).maybeSingle()
     if (!t) { setMissing(true); return }
     setTask(t)
-    const [a, w, s, c, cm, ac, f, st, te] = await Promise.all([
+    const depSel = 'id, number, title, list_id, archived, status:statuses(name, color, is_done)'
+    const [a, w, s, c, cm, ac, f, st, te, wo, bl] = await Promise.all([
       supabase.from('task_assignees').select('user_id').eq('task_id', taskId),
       supabase.from('task_watchers').select('user_id').eq('task_id', taskId),
       supabase.from('tasks').select('id, number, title, status_id').eq('parent_task_id', taskId).eq('archived', false).order('position').order('created_at'),
@@ -82,7 +88,11 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
       // The task's own list statuses (space and folder views mix lists).
       supabase.from('statuses').select('id, name, color, position, is_done').eq('list_id', t.list_id).order('position'),
       supabase.from('time_entries').select('user_id, started_at, ended_at').eq('task_id', taskId),
+      supabase.from('task_dependencies').select(`t:tasks!task_dependencies_blocked_by_id_fkey(${depSel})`).eq('task_id', taskId),
+      supabase.from('task_dependencies').select(`t:tasks!task_dependencies_task_id_fkey(${depSel})`).eq('blocked_by_id', taskId),
     ])
+    const deps = (rows: unknown) => ((rows ?? []) as { t: Dep | null }[]).map(r => r.t).filter((x): x is Dep => !!x)
+    setWaitingOn(deps(wo.data)); setBlocking(deps(bl.data))
     setOwnStatuses(st.data ?? [])
     const per = new Map<string, number>()
     for (const e of te.data ?? []) per.set(e.user_id, (per.get(e.user_id) ?? 0) + ((e.ended_at ? new Date(e.ended_at).getTime() : Date.now()) - new Date(e.started_at).getTime()) / 60000)
@@ -151,9 +161,10 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
       ? supabase.from('comment_reactions').delete().eq('comment_id', c.id).eq('user_id', me).eq('emoji', emoji)
       : supabase.from('comment_reactions').insert({ comment_id: c.id, emoji }))
   }
-  async function upload(file: File) {
-    if (file.size > 10 * 1024 * 1024) { notify('Files can be up to 10 MB.'); return }
+  async function upload(original: File) {
     setUploading(true)
+    const file = await shrinkImage(original)
+    if (file.size > 10 * 1024 * 1024) { setUploading(false); notify('Files can be up to 10 MB. For bigger files, paste a Google Drive link in a comment.'); return }
     const path = `${spaceId}/${taskId}/${crypto.randomUUID()}-${file.name.replace(/[^\w.-]+/g, '_')}`
     const { error } = await supabase.storage.from('attachments').upload(path, file, { contentType: file.type })
     if (error) { notify(error.message); setUploading(false); return }
@@ -219,6 +230,27 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
     await load(); onChanged()
   }
 
+  async function addDependency(e: FormEvent) {
+    e.preventDefault()
+    const n = Number(depInput.replace(/[^\d]/g, ''))
+    if (!n) { notify('Type the number of the task it waits on, for example 42.'); return }
+    if (n === task!.number) { notify('A task cannot wait on itself.'); return }
+    const { data: other } = await supabase.from('tasks').select('id, title').eq('number', n).maybeSingle()
+    if (!other) { notify(`There is no task #${n} that you can see.`); return }
+    const { error } = await supabase.from('task_dependencies').insert({ task_id: taskId, blocked_by_id: other.id })
+    if (error) { notify(error.code === '23505' ? 'It already waits on that task.' : error.message); return }
+    setDepInput(''); await load(); onChanged()
+  }
+  const depRow = (d: Dep, remove: () => void) => (
+    <div key={d.id} className="check-row dep-row">
+      <span className={`status-dot ${d.status?.is_done ? 'done' : ''}`} style={{ color: d.status?.color ?? 'var(--faint)' }} title={d.status?.name} aria-hidden />
+      <button className={`link sub ${d.status?.is_done ? 'struck' : ''}`} onClick={() => navigate(`/list/${d.list_id}?task=${d.id}`)}>#{d.number} {d.title}</button>
+      <span className="muted small">{d.status?.name}</span>
+      {canEdit && <button className="icon" aria-label={`Remove link to #${d.number}`} onClick={remove}>×</button>}
+    </div>
+  )
+  const openBlockers = waitingOn.filter(d => !d.status?.is_done && !d.archived)
+
   const describe = (a: Activity) => {
     const d = a.details as Record<string, string | null>
     switch (a.action) {
@@ -231,6 +263,8 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
       case 'priority': return `changed priority from ${d.from} to ${d.to}`
       case 'due_date': return d.to ? `set the due date to ${d.to}` : 'removed the due date'
       case 'title': return `renamed the task`
+      case 'blocked_by': return `marked this as waiting on ${d.task}`
+      case 'unblocked_by': return `removed the wait on ${d.task}`
       case 'qa_approved': return `approved this task in QA${d.note ? `: "${d.note}"` : ''}`
       case 'qa_changes': return `sent this task back from QA: "${d.note}"`
       case 'assigned': return `assigned ${name(d.user_id)}`
@@ -365,6 +399,21 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
         )}
 
         <section>
+          <h4>Dependencies {openBlockers.length > 0 && <span className="pill danger-pill">Blocked by {openBlockers.length}</span>}</h4>
+          {waitingOn.length > 0 && <div className="muted small">Waiting on</div>}
+          {waitingOn.map(d => depRow(d, () => run(supabase.from('task_dependencies').delete().eq('task_id', taskId).eq('blocked_by_id', d.id))))}
+          {blocking.length > 0 && <div className="muted small" style={{ marginTop: 6 }}>Blocking</div>}
+          {blocking.map(d => depRow(d, () => run(supabase.from('task_dependencies').delete().eq('task_id', d.id).eq('blocked_by_id', taskId))))}
+          {canEdit && (
+            <form onSubmit={addDependency} className="row dep-add">
+              <input className="inline-add" inputMode="numeric" placeholder="+ Waits on task #…" aria-label="Number of the task this one waits on" value={depInput} onChange={e => setDepInput(e.target.value)} />
+              {depInput.trim() && <button className="btn small">Add</button>}
+            </form>
+          )}
+          {!canEdit && !waitingOn.length && !blocking.length && <span className="muted small">None</span>}
+        </section>
+
+        <section>
           <h4>Checklist {checks.length > 0 && <span className="muted small">{checks.filter(c => c.done).length}/{checks.length}</span>}</h4>
           {checks.map(c => (
             <div key={c.id} className="check-row">
@@ -388,7 +437,7 @@ export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, on
             </div>
           ))}
           {canEdit && (
-            <label className="upload">{uploading ? 'Uploading…' : '+ Attach file (max 10 MB)'}
+            <label className="upload">{uploading ? 'Uploading…' : '+ Attach file (max 10 MB, photos are shrunk)'}
               <input type="file" hidden disabled={uploading} onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
             </label>
           )}

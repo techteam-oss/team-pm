@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlarmClock, AtSign, Bell, CalendarClock, CheckCheck, CircleCheck, MessageSquare, MessageSquareReply, MessagesSquare, ShieldCheck, Undo2, UserPlus } from 'lucide-react'
+import { AlarmClock, AtSign, Bell, CalendarClock, CheckCheck, CircleCheck, MessageSquare, MessageSquareReply, MessagesSquare, ShieldCheck, Timer, Undo2, Unlock, UserPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 
@@ -9,10 +9,10 @@ type N = { id: number; kind: string; message: string; read_at: string | null; cr
 
 export const KIND_ICON: Record<string, typeof Bell> = {
   mention: AtSign, comment: MessageSquare, comment_assigned: MessageSquare, assigned: UserPlus, qa_review: ShieldCheck,
-  ready_for_qa: ShieldCheck, qa_approved: CircleCheck, qa_changes: Undo2, completed: CircleCheck, estimate_exceeded: AlarmClock, due_today: CalendarClock, overdue: CalendarClock,
+  ready_for_qa: ShieldCheck, qa_approved: CircleCheck, qa_changes: Undo2, completed: CircleCheck, estimate_exceeded: AlarmClock, due_today: CalendarClock, overdue: CalendarClock, overdue_alert: CalendarClock, blocked_done: Unlock, timer_running: Timer,
   feedback: MessagesSquare, feedback_update: MessageSquareReply,
 }
-const URGENT = new Set(['estimate_exceeded', 'overdue', 'qa_changes'])
+const URGENT = new Set(['estimate_exceeded', 'overdue', 'overdue_alert', 'qa_changes', 'timer_running'])
 
 export function ago(iso: string) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000
