@@ -4,7 +4,7 @@ import { AlertCircle, Check, CheckCircle2, X } from 'lucide-react'
 // In-app replacements for the browser's prompt(), confirm() and alert().
 // Call askText / askConfirm / notify from anywhere; <DialogHost /> (mounted once) renders them.
 
-type TextReq = { kind: 'text'; title: string; label?: string; initial?: string; confirmLabel?: string; placeholder?: string
+type TextReq = { kind: 'text'; title: string; label?: string; initial?: string; confirmLabel?: string; placeholder?: string; optional?: boolean
   toggle?: { label: string; hint?: string }; resolve: (v: { value: string; toggled: boolean } | null) => void }
 type ConfirmReq = { kind: 'confirm'; title: string; body?: string; confirmLabel?: string; danger?: boolean; resolve: (ok: boolean) => void }
 type ChoiceReq = { kind: 'choice'; title: string; options: { value: string; label: string; color?: string }[]; initial?: string; confirmLabel?: string
@@ -54,7 +54,7 @@ export function DialogHost() {
 
   function close(ok: boolean) {
     if (!req) return
-    if (req.kind === 'text') req.resolve(ok && value.trim() ? { value: value.trim(), toggled } : null)
+    if (req.kind === 'text') req.resolve(ok && (value.trim() || req.optional) ? { value: value.trim(), toggled } : null)
     else if (req.kind === 'confirm') req.resolve(ok)
     else req.resolve(ok ? value : null)
     setReq(null)
@@ -108,7 +108,7 @@ export function DialogHost() {
             <div className="modal-actions">
               <button type="button" className="btn ghost" onClick={() => close(false)}>Cancel</button>
               {!(req.kind === 'choice' && req.instant) && <button ref={okRef} className={`btn ${req.kind === 'confirm' && req.danger ? 'danger-solid' : 'primary'}`}
-                disabled={req.kind === 'text' && !value.trim()}>{req.confirmLabel ?? (req.kind === 'confirm' ? 'Confirm' : 'Save')}</button>}
+                disabled={req.kind === 'text' && !req.optional && !value.trim()}>{req.confirmLabel ?? (req.kind === 'confirm' ? 'Confirm' : 'Save')}</button>}
             </div>
           </form>
         </div>

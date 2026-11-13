@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { CalendarDays, CircleDot, Clock, Flag, Hash, ShieldCheck, Tag, Timer, UserPlus, X } from 'lucide-react'
+import { CalendarDays, CircleDot, Clock, CopyPlus, Flag, Hash, ShieldCheck, Tag, Timer, UserPlus, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useWorkspace } from '../lib/workspace'
 import { useTimer } from '../lib/time'
@@ -8,11 +8,18 @@ import Avatar from './Avatar'
 import { notify } from './Dialogs'
 
 /** ClickUp-style "Create task" dialog: name, description and every property in one go. */
-export default function CreateTask({ listId, listName, spaceId, statuses, initialStatus, onClose, onCreated }: {
+export default function CreateTask({ listId: initialList, listName, spaceId, statuses: initialStatuses, initialStatus, listChoices, statusesFor, onClose, onCreated }: {
   listId: string; listName: string; spaceId: string; statuses: Status[]; initialStatus?: string
+  /** In a folder or space view: the lists the task can go into, and their statuses. */
+  listChoices?: { id: string; label: string }[]; statusesFor?: (listId: string) => Status[]
   onClose: () => void; onCreated: (taskId: string, open: boolean) => void
 }) {
-  const { people, level } = useWorkspace()
+  const [listId, setListId] = useState(initialList)
+  const statuses = statusesFor ? statusesFor(listId) : initialStatuses
+  const { people, level, workspace } = useWorkspace()
+  const [templates, setTemplates] = useState<{ id: string; name: string; data: { title: string; description: string | null; checklist: string[]; subtasks: unknown[] } }[]>([])
+  const [templateId, setTemplateId] = useState('')
+  const template = templates.find(t => t.id === templateId)
   const { start } = useTimer()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -34,6 +41,23 @@ export default function CreateTask({ listId, listName, spaceId, statuses, initia
 
   useEffect(() => { titleRef.current?.focus() }, [])
   useEffect(() => {
+    if (!workspace) return
+    supabase.from('templates').select('id, name, data').eq('workspace_id', workspace.id).eq('kind', 'task').order('name')
+      .then(({ data }) => setTemplates((data ?? []) as typeof templates))
+  }, [workspace])
+  function pickTemplate(id: string) {
+    setTemplateId(id)
+    const t = templates.find(x => x.id === id)
+    if (t && !title.trim()) setTitle(t.data.title)
+  }
+  // Switching list: keep the status by name if the new list has it.
+  function pickList(id: string) {
+    const now = statuses.find(s => s.id === statusId)
+    const next = statusesFor ? statusesFor(id) : []
+    setListId(id)
+    setStatusId((next.find(s => s.name.toLowerCase() === now?.name.toLowerCase()) ?? next.find(s => !s.is_done) ?? next[0])?.id ?? '')
+  }
+  useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
@@ -43,6 +67,15 @@ export default function CreateTask({ listId, listName, spaceId, statuses, initia
     e.preventDefault()
     if (!title.trim() || busy) return
     setBusy(true)
+    if (template) {
+      const { data: id, error } = await supabase.rpc('use_task_template', { p_template: template.id, p_list: listId, p_title: title.trim(), p_due: due || null })
+      setBusy(false)
+      if (error || !id) { notify(error?.message ?? 'Could not create the task'); return }
+      if (startTimer) await start(id as string)
+      notify(`Created "${title.trim()}" from ${template.name}`, 'ok')
+      if (another) { onCreated(id as string, false); setTitle(''); setDue(''); titleRef.current?.focus() } else onCreated(id as string, true)
+      return
+    }
     const est = estimate.trim() === '' ? null : Math.round(Number(estimate) * 60)
     const { data, error } = await supabase.from('tasks').insert({
       list_id: listId, title: title.trim(), description: description.trim() || null, status_id: statusId || null,
@@ -71,11 +104,33 @@ export default function CreateTask({ listId, listName, spaceId, statuses, initia
     <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <form className="modal create-task" role="dialog" aria-modal="true" aria-label="Create task" onSubmit={submit}>
         <div className="modal-head">
-          <div className="crumbs"><Hash size={13} aria-hidden />New task in <b style={{ color: 'var(--text)' }}>{listName}</b></div>
+          {listChoices && listChoices.length > 1 ? (
+            <label className="crumbs"><Hash size={13} aria-hidden />New task in
+              <select aria-label="List" value={listId} onChange={e => pickList(e.target.value)}>
+                {listChoices.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+              </select>
+            </label>
+          ) : <div className="crumbs"><Hash size={13} aria-hidden />New task in <b style={{ color: 'var(--text)' }}>{listChoices?.[0]?.label ?? listName}</b></div>}
           <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><X size={16} /></button>
         </div>
 
+        {templates.length > 0 && (
+          <label className="ct-template"><CopyPlus size={14} aria-hidden />
+            <select aria-label="Start from a template" value={templateId} onChange={e => pickTemplate(e.target.value)}>
+              <option value="">Blank task</option>
+              {templates.map(t => <option key={t.id} value={t.id}>Template: {t.name}</option>)}
+            </select>
+          </label>
+        )}
         <input ref={titleRef} className="ct-title" placeholder="Task name" aria-label="Task name" required maxLength={300} value={title} onChange={e => setTitle(e.target.value)} />
+        {template ? (
+          <div className="ct-template-note">
+            <p>Creates the task with the template's description, priority, estimate, tags, people{template.data.subtasks.length ? `, ${template.data.subtasks.length} subtasks` : ''}{template.data.checklist.length ? ` and ${template.data.checklist.length} checklist items` : ''}.</p>
+            <label className="ct-prop"><span><CalendarDays size={14} aria-hidden />Due date</span>
+              <input type="date" value={due} onChange={e => setDue(e.target.value)} />
+            </label>
+          </div>
+        ) : <>
         <textarea className="ct-desc" placeholder="Add a description (supports **bold**, lists, - [ ] checkboxes)" aria-label="Description" rows={3} value={description} onChange={e => setDescription(e.target.value)} />
 
         <div className="ct-props">
@@ -99,7 +154,7 @@ export default function CreateTask({ listId, listName, spaceId, statuses, initia
             <input type="number" min="0" step="0.25" placeholder="e.g. 2.5" value={estimate} onChange={e => setEstimate(e.target.value)} />
           </label>
           <label className="ct-prop"><span><Tag size={14} aria-hidden />Tags</span>
-            <input placeholder="design, client" value={tags} onChange={e => setTags(e.target.value)} />
+            <input placeholder="design, urgent" value={tags} onChange={e => setTags(e.target.value)} />
           </label>
         </div>
 
@@ -125,6 +180,8 @@ export default function CreateTask({ listId, listName, spaceId, statuses, initia
             </select>
           </label>
         </div>
+
+        </>}
 
         <div className="ct-foot">
           <label className="tb-check"><input type="checkbox" checked={startTimer} onChange={e => setStartTimer(e.target.checked)} /><Timer size={14} aria-hidden />Start my timer on it</label>

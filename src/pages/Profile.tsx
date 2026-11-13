@@ -5,6 +5,7 @@ import { isAdmin, useWorkspace } from '../lib/workspace'
 import Avatar from '../components/Avatar'
 import ThemeSwitch from '../components/ThemeSwitch'
 import { EMAIL_KINDS } from './Settings'
+import { shrinkImage } from '../lib/image'
 import { checkPassword } from '../lib/password'
 
 export default function Profile() {
@@ -31,10 +32,11 @@ export default function Profile() {
     const { error } = await supabase.from('profiles').update({ full_name: name.trim() || null }).eq('id', uid)
     setMsg(error ? error.message : 'Name saved.'); if (!error) refresh()
   }
-  async function upload(file: File) {
-    if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) { setMsg('Use a PNG, JPG, WebP or GIF image.'); return }
-    if (file.size > 2 * 1024 * 1024) { setMsg('Pictures can be up to 2 MB.'); return }
+  async function upload(original: File) {
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(original.type)) { setMsg('Use a PNG, JPG, WebP or GIF image.'); return }
     setBusy(true)
+    const file = await shrinkImage(original, 512)
+    if (file.size > 2 * 1024 * 1024) { setBusy(false); setMsg('Pictures can be up to 2 MB.'); return }
     const path = `${uid}/${crypto.randomUUID()}.${file.type.split('/')[1].replace('jpeg', 'jpg')}`
     const up = await supabase.storage.from('avatars').upload(path, file, { contentType: file.type, cacheControl: '31536000' })
     if (up.error) { setBusy(false); setMsg(up.error.message); return }

@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { DatabaseBackup, Download, Mail, Send, Webhook } from 'lucide-react'
+import { CopyPlus, DatabaseBackup, Download, HardDrive, Mail, Send, Webhook } from 'lucide-react'
 import { ago } from '../components/NotificationBell'
 import { supabase } from '../lib/supabase'
 import { isAdmin, useWorkspace } from '../lib/workspace'
-import { notify } from '../components/Dialogs'
+import { askConfirm, notify } from '../components/Dialogs'
+import { fmtBytes } from '../lib/image'
 
 const DEFAULT_APP = 'https://techteam-oss.github.io/team-pm/'
 
@@ -13,14 +14,37 @@ export const EMAIL_KINDS: { kind: string; label: string; on: boolean; adminOnly?
   { kind: 'comment_assigned', label: 'A comment is assigned to me', on: true },
   { kind: 'qa_review', label: 'I am made QA reviewer', on: true },
   { kind: 'ready_for_qa', label: 'A task I review is done and ready for QA', on: true },
+  { kind: 'qa_approved', label: 'QA approves my task', on: true },
+  { kind: 'qa_changes', label: 'QA sends my task back for changes', on: true },
   { kind: 'estimate_exceeded', label: 'A task goes over its time estimate', on: true },
-  { kind: 'due_today', label: 'My task is due today (9 AM)', on: true },
-  { kind: 'overdue', label: 'My task is overdue (9 AM)', on: true },
+  { kind: 'digest', label: 'Morning digest on weekdays (9 AM): overdue, due today, sent back, waiting for my QA', on: true },
+  { kind: 'weekly_summary', label: 'Monday summary of the last week (admins)', on: true, adminOnly: true },
+  { kind: 'due_today', label: 'A separate email for each task due today (the digest covers these)', on: false },
+  { kind: 'overdue', label: 'A separate email for each overdue task (the digest covers these)', on: false },
+  { kind: 'overdue_alert', label: 'A task I created, review or manage is 2+ days late (9 AM)', on: true },
+  { kind: 'blocked_done', label: 'A task mine was waiting on is done', on: true },
+  { kind: 'timer_running', label: 'My timer has been running for 4 hours', on: true },
   { kind: 'feedback_update', label: 'An admin replies to feedback I sent', on: true },
   { kind: 'feedback', label: 'Someone sends feedback about the app (admins)', on: true, adminOnly: true },
   { kind: 'comment', label: 'New comments on tasks I watch', on: false },
   { kind: 'completed', label: 'A task I created is completed', on: false },
 ]
+
+type Usage = { files_bytes: number; files_count: number; attachments_bytes: number; avatars_bytes: number; database_bytes: number; files_limit: number; database_limit: number }
+
+function Meter({ label, used, limit, note }: { label: string; used: number; limit: number; note?: string }) {
+  const pct = Math.min(100, (used / limit) * 100)
+  const tone = pct >= 90 ? 'danger' : pct >= 80 ? 'warn' : 'ok'
+  return (
+    <div className="meter">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <b>{label}</b><span className="muted small">{fmtBytes(used)} of {fmtBytes(limit)} · {pct < 1 && used > 0 ? 'under 1' : Math.round(pct)}%</span>
+      </div>
+      <div className={`meter-bar ${tone}`} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}><span style={{ width: `${Math.max(pct, used > 0 ? 1 : 0)}%` }} /></div>
+      {pct >= 80 && <p className={`small ${tone}`} style={{ margin: 0 }}><b>{pct >= 90 ? 'Almost full.' : 'Over 80% used.'}</b> {note}</p>}
+    </div>
+  )
+}
 
 /** Admin settings: where emails go (the GoHighLevel inbound webhook). */
 export default function Settings() {
@@ -31,13 +55,28 @@ export default function Settings() {
   const [busy, setBusy] = useState(false)
   const [backup, setBackup] = useState<{ count: number; latest: string | null; size: string } | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [usage, setUsage] = useState<Usage | null>(null)
+  const [templates, setTemplates] = useState<{ id: string; kind: string; name: string; created_by: string | null }[]>([])
 
   useEffect(() => {
     if (!workspace) return
     supabase.rpc('backup_status', { ws: workspace.id }).then(({ data }) => setBackup(data as typeof backup))
+    supabase.rpc('storage_usage', { ws: workspace.id }).then(({ data }) => setUsage(data as Usage | null))
+    loadTemplates()
     supabase.from('workspace_settings').select('ghl_webhook_url, app_url').eq('workspace_id', workspace.id).maybeSingle()
       .then(({ data }) => { setHook(data?.ghl_webhook_url ?? ''); setApp(data?.app_url ?? DEFAULT_APP); setSaved(data?.ghl_webhook_url ?? '') })
   }, [workspace])
+
+  function loadTemplates() {
+    if (!workspace) return
+    supabase.from('templates').select('id, kind, name, created_by').eq('workspace_id', workspace.id).order('kind').order('name')
+      .then(({ data }) => setTemplates(data ?? []))
+  }
+  async function deleteTemplate(id: string, name: string) {
+    if (!await askConfirm({ title: `Delete the template "${name}"?`, body: 'Tasks and lists already made from it stay as they are.', confirmLabel: 'Delete template', danger: true })) return
+    const { error } = await supabase.from('templates').delete().eq('id', id)
+    if (error) notify(error.message); else loadTemplates()
+  }
 
   if (!isAdmin(role)) return <p className="muted">Only admins can change settings.</p>
 
@@ -114,6 +153,37 @@ export default function Settings() {
           <button className="btn" onClick={download} disabled={exporting}><Download size={15} aria-hidden />{exporting ? 'Preparing…' : 'Download a backup now'}</button>
           <span className="muted small">Once a week, save a copy outside Supabase (for example in Google Drive). Downloads are recorded in the activity log.</span>
         </div>
+      </div>
+
+      <div className="card stack" id="storage">
+        <h2 className="row" style={{ gap: 8 }}><HardDrive size={17} aria-hidden />Storage</h2>
+        <p className="muted small" style={{ margin: 0 }}>
+          The free Supabase plan includes 1 GB for files and 500 MB for the database. Photos are shrunk automatically when they are uploaded.
+          For big files such as videos, paste a Google Drive link in a comment instead of uploading.
+        </p>
+        {usage ? <>
+          <Meter label="Files" used={usage.files_bytes} limit={usage.files_limit} note="Delete old files from finished tasks, or move to the Pro plan ($25 a month, 100 GB)." />
+          <p className="muted small" style={{ margin: 0 }}>{usage.files_count} files · task files {fmtBytes(usage.attachments_bytes)} · profile pictures {fmtBytes(usage.avatars_bytes)}</p>
+          <Meter label="Database" used={usage.database_bytes} limit={usage.database_limit} note="Archive or delete old lists, or move to the Pro plan ($25 a month, 8 GB)." />
+        </> : <p className="muted small">Loading…</p>}
+      </div>
+
+      <div className="card stack" id="templates">
+        <h2 className="row" style={{ gap: 8 }}><CopyPlus size={17} aria-hidden />Templates</h2>
+        <p className="muted small" style={{ margin: 0 }}>
+          Save a task as a template with its "Template" button, or a list from its menu in the sidebar ("Save as template").
+          Task templates show up in the Create task dialog; list templates under a space's + menu, "New list from template".
+        </p>
+        {templates.length === 0 ? <p className="muted small" style={{ margin: 0 }}>No templates yet.</p> : (
+          <ul className="plain-list">
+            {templates.map(t => (
+              <li key={t.id} className="row" style={{ gap: 8 }}>
+                <span className="pill">{t.kind === 'list' ? 'List' : 'Task'}</span><span>{t.name}</span>
+                <button className="danger-link small" onClick={() => deleteTemplate(t.id, t.name)}>Delete</button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="card stack">

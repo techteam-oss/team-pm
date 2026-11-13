@@ -7,20 +7,26 @@ import Avatar from './Avatar'
 import TimeSection from './TimeSection'
 import { RichEditor } from './RichText'
 import { encodeMentions, MentionTextarea, renderMentions, type MentionPerson } from './Mentions'
-import { askChoice, askConfirm, notify } from './Dialogs'
-import { Bell, BellRing, FolderInput, Paperclip, X } from 'lucide-react'
+import { askChoice, askConfirm, askText, notify } from './Dialogs'
+import { Bell, BellRing, Check, CopyPlus, FolderInput, Paperclip, ShieldCheck, Undo2, X } from 'lucide-react'
+import { fmtMinutes } from '../lib/time'
+import { QA_LABEL } from './QaBadge'
+import { shrinkImage } from '../lib/image'
 import { useNavigate } from 'react-router-dom'
 
 type Full = {
   id: string; number: number; list_id: string; title: string; description: string | null; status_id: string | null
   priority: string; start_date: string | null; due_date: string | null; time_estimate_minutes: number | null; reviewer_id: string | null
   tags: string[]; parent_task_id: string | null; created_by: string | null; created_at: string
-  archived: boolean; deleted_at: string | null
+  archived: boolean; deleted_at: string | null; completed_at: string | null; completed_by: string | null
+  qa_state: 'pending' | 'approved' | 'changes' | null; qa_by: string | null; qa_at: string | null; qa_note: string | null; rework_count: number
+  recurrence: 'daily' | 'weekdays' | 'weekly' | 'monthly' | null
 }
 type Sub = { id: string; number: number; title: string; status_id: string | null }
 type Check = { id: string; title: string; done: boolean; position: number }
 type Comment = { id: string; user_id: string; body: string; assigned_to: string | null; resolved: boolean; created_at: string; comment_reactions: { user_id: string; emoji: string }[] }
 type Activity = { id: number; user_id: string | null; action: string; details: Record<string, unknown>; created_at: string }
+type Dep = { id: string; number: number; title: string; list_id: string; archived: boolean; status: { name: string; color: string; is_done: boolean } | null }
 type Attachment = { id: string; storage_path: string; file_name: string; size_bytes: number; uploaded_by: string }
 
 const EMOJIS = ['👍', '❤️', '🎉', '✅']
@@ -33,13 +39,13 @@ function ago(iso: string) {
   return new Date(iso).toLocaleDateString()
 }
 
-export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChanged, onOpen }: {
+export default function TaskPanel({ taskId, spaceId, statuses: givenStatuses, onClose, onChanged, onOpen }: {
   taskId: string; spaceId: string; statuses: Status[]
   onClose: () => void; onChanged: () => void; onOpen: (id: string) => void
 }) {
   const { session } = useAuth()
   const me = session!.user.id
-  const { people, level, lists, folders } = useWorkspace()
+  const { people, level, lists, folders, spaces } = useWorkspace()
   const navigate = useNavigate()
   const lvl = level(spaceId)
   const canEdit = lvl >= 3, canComment = lvl >= 2
@@ -58,14 +64,21 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
   const [assignTo, setAssignTo] = useState('')
   const [uploading, setUploading] = useState(false)
   const [missing, setMissing] = useState(false)
+  const [ownStatuses, setOwnStatuses] = useState<Status[]>([])
+  const [logged, setLogged] = useState<{ user_id: string; minutes: number }[]>([])
+  const [waitingOn, setWaitingOn] = useState<Dep[]>([])
+  const [blocking, setBlocking] = useState<Dep[]>([])
+  const [depInput, setDepInput] = useState('')
+  const statuses = ownStatuses.length ? ownStatuses : givenStatuses
 
   const load = useCallback(async () => {
     const { data: t } = await supabase.from('tasks')
-      .select('id, number, list_id, title, description, status_id, priority, start_date, due_date, time_estimate_minutes, reviewer_id, tags, parent_task_id, created_by, created_at, archived, deleted_at')
+      .select('id, number, list_id, title, description, status_id, priority, start_date, due_date, time_estimate_minutes, reviewer_id, tags, parent_task_id, created_by, created_at, archived, deleted_at, completed_at, completed_by, qa_state, qa_by, qa_at, qa_note, rework_count, recurrence')
       .eq('id', taskId).maybeSingle()
     if (!t) { setMissing(true); return }
     setTask(t)
-    const [a, w, s, c, cm, ac, f] = await Promise.all([
+    const depSel = 'id, number, title, list_id, archived, status:statuses(name, color, is_done)'
+    const [a, w, s, c, cm, ac, f, st, te, wo, bl] = await Promise.all([
       supabase.from('task_assignees').select('user_id').eq('task_id', taskId),
       supabase.from('task_watchers').select('user_id').eq('task_id', taskId),
       supabase.from('tasks').select('id, number, title, status_id').eq('parent_task_id', taskId).eq('archived', false).order('position').order('created_at'),
@@ -73,7 +86,18 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
       supabase.from('comments').select('id, user_id, body, assigned_to, resolved, created_at, comment_reactions(user_id, emoji)').eq('task_id', taskId).order('created_at'),
       supabase.from('activity_log').select('id, user_id, action, details, created_at').eq('task_id', taskId).order('created_at'),
       supabase.from('attachments').select('id, storage_path, file_name, size_bytes, uploaded_by').eq('task_id', taskId).order('created_at'),
+      // The task's own list statuses (space and folder views mix lists).
+      supabase.from('statuses').select('id, name, color, position, is_done').eq('list_id', t.list_id).order('position'),
+      supabase.from('time_entries').select('user_id, started_at, ended_at').eq('task_id', taskId),
+      supabase.from('task_dependencies').select(`t:tasks!task_dependencies_blocked_by_id_fkey(${depSel})`).eq('task_id', taskId),
+      supabase.from('task_dependencies').select(`t:tasks!task_dependencies_task_id_fkey(${depSel})`).eq('blocked_by_id', taskId),
     ])
+    const deps = (rows: unknown) => ((rows ?? []) as { t: Dep | null }[]).map(r => r.t).filter((x): x is Dep => !!x)
+    setWaitingOn(deps(wo.data)); setBlocking(deps(bl.data))
+    setOwnStatuses(st.data ?? [])
+    const per = new Map<string, number>()
+    for (const e of te.data ?? []) per.set(e.user_id, (per.get(e.user_id) ?? 0) + ((e.ended_at ? new Date(e.ended_at).getTime() : Date.now()) - new Date(e.started_at).getTime()) / 60000)
+    setLogged([...per].map(([user_id, minutes]) => ({ user_id, minutes })).sort((x, y) => y.minutes - x.minutes))
     setAssignees((a.data ?? []).map(x => x.user_id)); setWatchers((w.data ?? []).map(x => x.user_id))
     setSubs(s.data ?? []); setChecks(c.data ?? []); setComments((cm.data ?? []) as Comment[])
     setActivity((ac.data ?? []) as Activity[]); setFiles(f.data ?? [])
@@ -138,9 +162,10 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
       ? supabase.from('comment_reactions').delete().eq('comment_id', c.id).eq('user_id', me).eq('emoji', emoji)
       : supabase.from('comment_reactions').insert({ comment_id: c.id, emoji }))
   }
-  async function upload(file: File) {
-    if (file.size > 10 * 1024 * 1024) { notify('Files can be up to 10 MB.'); return }
+  async function upload(original: File) {
     setUploading(true)
+    const file = await shrinkImage(original)
+    if (file.size > 10 * 1024 * 1024) { setUploading(false); notify('Files can be up to 10 MB. For bigger files, paste a Google Drive link in a comment.'); return }
     const path = `${spaceId}/${taskId}/${crypto.randomUUID()}-${file.name.replace(/[^\w.-]+/g, '_')}`
     const { error } = await supabase.storage.from('attachments').upload(path, file, { contentType: file.type })
     if (error) { notify(error.message); setUploading(false); return }
@@ -164,10 +189,15 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
   }
   async function moveTask() {
     if (!task) return
-    const options = lists.filter(l => l.space_id === spaceId && l.id !== task.list_id)
-    if (!options.length) { notify('There is no other list in this space to move it to.'); return }
-    const label = (l: typeof lists[number]) => { const f = folders.find(x => x.id === l.folder_id); return f ? `${f.name} / ${l.name}` : l.name }
-    const pick = await askChoice({ title: `Move "${task.title}"`, confirmLabel: 'Move task', initial: options[0].id,
+    // Any open list in a space where you can edit, like ClickUp: other spaces, folders and lists.
+    const options = lists.filter(l => l.id !== task.list_id && level(l.space_id) >= 3)
+      .sort((x, y) => (spaces.findIndex(s => s.id === x.space_id) - spaces.findIndex(s => s.id === y.space_id)) || (x.folder_id ?? '').localeCompare(y.folder_id ?? '') || x.position - y.position)
+    if (!options.length) { notify('There is no other list you can move it to.'); return }
+    const label = (l: typeof lists[number]) => {
+      const f = folders.find(x => x.id === l.folder_id); const sp = spaces.find(x => x.id === l.space_id)
+      return [sp?.name, f?.name, l.name].filter(Boolean).join(' / ')
+    }
+    const pick = await askChoice({ title: `Move "${task.title}" to`, confirmLabel: 'Move task', initial: options[0].id,
       options: options.map(l => ({ value: l.id, label: label(l) })) })
     if (!pick) return
     const { error } = await supabase.rpc('move_task', { p_task: task.id, p_list: pick })
@@ -176,7 +206,57 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
     onChanged()
     navigate(`/list/${pick}?task=${task.id}`)
   }
+  async function saveTemplate() {
+    const r = await askText({ title: 'Save as template', label: 'Template name', initial: task!.title, confirmLabel: 'Save template' })
+    if (!r) return
+    const { error } = await supabase.rpc('save_task_template', { p_task: taskId, p_name: r.value })
+    if (error) notify(error.message); else notify(`Saved "${r.value}". Pick it when you create a task.`, 'ok')
+  }
   const trashTask = async () => { if (await askConfirm({ title: 'Move this task to the trash?', body: 'Its subtasks go too. You can restore them from Archive.', confirmLabel: 'Move to trash', danger: true })) setArchive({ deleted_at: new Date().toISOString() }, true) }
+
+  // People who worked on it: assignees plus anyone who logged time.
+  const workers = [...new Set([...assignees, ...logged.map(l => l.user_id)])]
+    .map(id => ({ id, minutes: logged.find(l => l.user_id === id)?.minutes ?? 0 }))
+  const finished = isDone(task.status_id) || /review|\bqa\b/i.test(statuses.find(s => s.id === task.status_id)?.name ?? '')
+  const canReview = !!task.reviewer_id && !task.archived && (task.reviewer_id === me || lvl >= 4)
+    && (task.qa_state === 'pending' || (finished && task.qa_state !== 'approved'))
+  async function review(approve: boolean) {
+    let note: string | null = null
+    if (approve) {
+      const r = await askText({ title: `Approve "${task!.title}"?`, label: 'Note for the team (optional)', placeholder: 'e.g. Checked on mobile too', confirmLabel: 'Approve', optional: true })
+      if (!r) return
+      note = r.value
+    } else {
+      const r = await askText({ title: 'Send back for changes', label: 'What needs to change?', placeholder: 'e.g. The totals in section 2 are wrong', confirmLabel: 'Send back' })
+      if (!r || !r.value.trim()) return
+      note = r.value
+    }
+    const { error } = await supabase.rpc('qa_review', { p_task: taskId, p_approve: approve, p_note: note })
+    if (error) { notify(error.message); return }
+    notify(approve ? 'Approved' : 'Sent back to the assignees', 'ok')
+    await load(); onChanged()
+  }
+
+  async function addDependency(e: FormEvent) {
+    e.preventDefault()
+    const n = Number(depInput.replace(/[^\d]/g, ''))
+    if (!n) { notify('Type the number of the task it waits on, for example 42.'); return }
+    if (n === task!.number) { notify('A task cannot wait on itself.'); return }
+    const { data: other } = await supabase.from('tasks').select('id, title').eq('number', n).maybeSingle()
+    if (!other) { notify(`There is no task #${n} that you can see.`); return }
+    const { error } = await supabase.from('task_dependencies').insert({ task_id: taskId, blocked_by_id: other.id })
+    if (error) { notify(error.code === '23505' ? 'It already waits on that task.' : error.message); return }
+    setDepInput(''); await load(); onChanged()
+  }
+  const depRow = (d: Dep, remove: () => void) => (
+    <div key={d.id} className="check-row dep-row">
+      <span className={`status-dot ${d.status?.is_done ? 'done' : ''}`} style={{ color: d.status?.color ?? 'var(--faint)' }} title={d.status?.name} aria-hidden />
+      <button className={`link sub ${d.status?.is_done ? 'struck' : ''}`} onClick={() => navigate(`/list/${d.list_id}?task=${d.id}`)}>#{d.number} {d.title}</button>
+      <span className="muted small">{d.status?.name}</span>
+      {canEdit && <button className="icon" aria-label={`Remove link to #${d.number}`} onClick={remove}>×</button>}
+    </div>
+  )
+  const openBlockers = waitingOn.filter(d => !d.status?.is_done && !d.archived)
 
   const describe = (a: Activity) => {
     const d = a.details as Record<string, string | null>
@@ -190,6 +270,12 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
       case 'priority': return `changed priority from ${d.from} to ${d.to}`
       case 'due_date': return d.to ? `set the due date to ${d.to}` : 'removed the due date'
       case 'title': return `renamed the task`
+      case 'blocked_by': return `marked this as waiting on ${d.task}`
+      case 'unblocked_by': return `removed the wait on ${d.task}`
+      case 'recurred': return `finished a repeating task, so ${d.next} was created for ${d.due}`
+      case 'repeat_of': return `created this as the next repeat of ${d.previous}`
+      case 'qa_approved': return `approved this task in QA${d.note ? `: "${d.note}"` : ''}`
+      case 'qa_changes': return `sent this task back from QA: "${d.note}"`
       case 'assigned': return `assigned ${name(d.user_id)}`
       case 'unassigned': return `unassigned ${name(d.user_id)}`
       default: return a.action
@@ -212,7 +298,8 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
               : supabase.from('task_watchers').insert({ task_id: taskId }))}>
               {watching ? <><BellRing size={14} aria-hidden />Watching</> : <><Bell size={14} aria-hidden />Watch</>} · {watchers.length}
             </button>
-            {canEdit && !task.archived && <button onClick={moveTask} title="Move to another list in this space"><FolderInput size={14} aria-hidden />Move</button>}
+            {canEdit && !task.archived && <button onClick={moveTask} title="Move to another space, folder or list"><FolderInput size={14} aria-hidden />Move</button>}
+            {canEdit && !task.archived && !task.parent_task_id && <button onClick={saveTemplate} title="Save as a template to reuse later"><CopyPlus size={14} aria-hidden />Template</button>}
             {canEdit && !task.archived && <button onClick={() => setArchive({ archived: true }, true)} title="Hide from views, keep everything">Archive</button>}
             {canEdit && task.archived && <button onClick={() => setArchive({ archived: false }, false)}>Restore</button>}
             {!task.deleted_at && canEdit && <button className="danger-link" onClick={trashTask}>Delete</button>}
@@ -248,11 +335,52 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
               {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
+          {!task.parent_task_id && <label>Repeat
+            <select disabled={!canEdit} value={task.recurrence ?? ''} onChange={e => patch({ recurrence: (e.target.value || null) as Full['recurrence'] })}>
+              <option value="">Doesn't repeat</option>
+              <option value="daily">Every day</option>
+              <option value="weekdays">Every weekday (Mon–Fri)</option>
+              <option value="weekly">Every week</option>
+              <option value="monthly">Every month</option>
+            </select>
+            {task.recurrence && <span className="muted small">When it's done, the next one is created{task.due_date ? '' : ' (set a due date to control when)'}.</span>}
+          </label>}
           <label>Tags
-            <input disabled={!canEdit} key={`tags-${task.tags.join(',')}`} defaultValue={task.tags.join(', ')} placeholder="design, client"
+            <input disabled={!canEdit} key={`tags-${task.tags.join(',')}`} defaultValue={task.tags.join(', ')} placeholder="design, urgent"
               onBlur={e => { const tags = e.target.value.split(',').map(x => x.trim()).filter(Boolean); if (tags.join(',') !== task.tags.join(',')) patch({ tags }) }} />
           </label>
         </div>
+
+        <section className="work-qa" aria-label="Work and QA">
+          <h4><ShieldCheck size={15} aria-hidden />Work &amp; QA</h4>
+          <dl>
+            <dt>Worked on by</dt>
+            <dd>{workers.length ? workers.map(w => (
+              <span key={w.id} className="chip"><Avatar id={w.id} name={name(w.id)} size={20} />{name(w.id)}{w.minutes > 0 && <span className="muted small">{fmtMinutes(w.minutes)}</span>}</span>
+            )) : <span className="muted">Nobody assigned or tracking time yet</span>}</dd>
+            <dt>Finished by</dt>
+            <dd>{task.completed_by ? <span className="chip"><Avatar id={task.completed_by} name={name(task.completed_by)} size={20} />{name(task.completed_by)}
+              {task.completed_at && <span className="muted small">{new Date(task.completed_at).toLocaleDateString()}</span>}</span>
+              : <span className="muted">Not finished yet</span>}</dd>
+            <dt>QA</dt>
+            <dd>
+              {!task.reviewer_id ? <span className="muted">No QA reviewer. Pick one above.</span> : <>
+                <span className="chip"><Avatar id={task.reviewer_id} name={name(task.reviewer_id)} size={20} />{name(task.reviewer_id)}</span>
+                <span className={`qa-pill ${task.qa_state ?? 'none'}`}>{task.qa_state ? QA_LABEL[task.qa_state] : 'Not ready for QA yet'}</span>
+                {task.qa_by && task.qa_at && task.qa_state !== 'pending' && <span className="muted small">by {name(task.qa_by)} · {new Date(task.qa_at).toLocaleDateString()}</span>}
+              </>}
+              {task.rework_count > 0 && <span className="muted small">Sent back {task.rework_count} {task.rework_count === 1 ? 'time' : 'times'}</span>}
+            </dd>
+            {task.qa_state === 'changes' && task.qa_note && <><dt>What to fix</dt><dd className="qa-note">{task.qa_note}</dd></>}
+          </dl>
+          {canReview && (
+            <div className="row">
+              <button className="primary" onClick={() => review(true)}><Check size={15} aria-hidden />Approve</button>
+              <button onClick={() => review(false)}><Undo2 size={15} aria-hidden />Send back</button>
+              {task.qa_state !== 'pending' && <span className="muted small">You can review it now, or wait until it is moved to Review.</span>}
+            </div>
+          )}
+        </section>
 
         <section>
           <h4>Assignees</h4>
@@ -291,6 +419,21 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
         )}
 
         <section>
+          <h4>Dependencies {openBlockers.length > 0 && <span className="pill danger-pill">Blocked by {openBlockers.length}</span>}</h4>
+          {waitingOn.length > 0 && <div className="muted small">Waiting on</div>}
+          {waitingOn.map(d => depRow(d, () => run(supabase.from('task_dependencies').delete().eq('task_id', taskId).eq('blocked_by_id', d.id))))}
+          {blocking.length > 0 && <div className="muted small" style={{ marginTop: 6 }}>Blocking</div>}
+          {blocking.map(d => depRow(d, () => run(supabase.from('task_dependencies').delete().eq('task_id', d.id).eq('blocked_by_id', taskId))))}
+          {canEdit && (
+            <form onSubmit={addDependency} className="row dep-add">
+              <input className="inline-add" inputMode="numeric" placeholder="+ Waits on task #…" aria-label="Number of the task this one waits on" value={depInput} onChange={e => setDepInput(e.target.value)} />
+              {depInput.trim() && <button className="btn small">Add</button>}
+            </form>
+          )}
+          {!canEdit && !waitingOn.length && !blocking.length && <span className="muted small">None</span>}
+        </section>
+
+        <section>
           <h4>Checklist {checks.length > 0 && <span className="muted small">{checks.filter(c => c.done).length}/{checks.length}</span>}</h4>
           {checks.map(c => (
             <div key={c.id} className="check-row">
@@ -314,7 +457,7 @@ export default function TaskPanel({ taskId, spaceId, statuses, onClose, onChange
             </div>
           ))}
           {canEdit && (
-            <label className="upload">{uploading ? 'Uploading…' : '+ Attach file (max 10 MB)'}
+            <label className="upload">{uploading ? 'Uploading…' : '+ Attach file (max 10 MB, photos are shrunk)'}
               <input type="file" hidden disabled={uploading} onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
             </label>
           )}
