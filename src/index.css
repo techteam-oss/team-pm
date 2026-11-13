@@ -119,7 +119,7 @@ button.danger, .danger-link { color: var(--danger); }
 kbd { font: 11px/1 inherit; color: var(--muted); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; background: var(--surface); }
 .top-right { display: flex; align-items: center; gap: 8px; }
 .menu-burger { display: none; }
-.content { padding: 20px 28px 48px; width: 100%; max-width: 1280px; }
+.content { padding: 20px 28px 48px; width: 100%; }
 .me-btn { border: 0; background: none; padding: 3px; border-radius: 999px; }
 .me-btn:hover { background: var(--hover); }
 @media (max-width: 860px) {
