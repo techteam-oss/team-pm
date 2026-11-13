@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, CheckCircle2, X } from 'lucide-react'
+import { AlertCircle, Check, CheckCircle2, X } from 'lucide-react'
 
 // In-app replacements for the browser's prompt(), confirm() and alert().
 // Call askText / askConfirm / notify from anywhere; <DialogHost /> (mounted once) renders them.
@@ -7,7 +7,9 @@ import { AlertCircle, CheckCircle2, X } from 'lucide-react'
 type TextReq = { kind: 'text'; title: string; label?: string; initial?: string; confirmLabel?: string; placeholder?: string
   toggle?: { label: string; hint?: string }; resolve: (v: { value: string; toggled: boolean } | null) => void }
 type ConfirmReq = { kind: 'confirm'; title: string; body?: string; confirmLabel?: string; danger?: boolean; resolve: (ok: boolean) => void }
-type ChoiceReq = { kind: 'choice'; title: string; options: { value: string; label: string }[]; initial?: string; confirmLabel?: string; resolve: (v: string | null) => void }
+type ChoiceReq = { kind: 'choice'; title: string; options: { value: string; label: string; color?: string }[]; initial?: string; confirmLabel?: string
+  /** Picking an option closes the dialog straight away (one tap on phones). */
+  instant?: boolean; resolve: (v: string | null) => void }
 type Req = TextReq | ConfirmReq | ChoiceReq
 type Toast = { id: number; text: string; tone: 'error' | 'ok' }
 
@@ -46,7 +48,8 @@ export function DialogHost() {
   }, [])
   useEffect(() => {
     if (!req) return
-    requestAnimationFrame(() => (req.kind === 'text' ? inputRef.current?.select() : okRef.current?.focus()))
+    requestAnimationFrame(() => (req.kind === 'text' ? inputRef.current?.select()
+      : req.kind === 'choice' && req.instant ? document.querySelector<HTMLButtonElement>('.choice-btn.on, .choice-btn')?.focus() : okRef.current?.focus()))
   }, [req])
 
   function close(ok: boolean) {
@@ -80,19 +83,32 @@ export function DialogHost() {
               </>
             )}
             {req.kind === 'confirm' && req.body && <p className="modal-body">{req.body}</p>}
-            {req.kind === 'choice' && (
+            {req.kind === 'choice' && req.instant && (
+              <div className="choice-list">
+                {req.options.map(o => (
+                  <button key={o.value} type="button" className={`choice choice-btn ${value === o.value ? 'on' : ''}`} aria-pressed={value === o.value}
+                    onClick={() => { req.resolve(o.value); setReq(null) }}>
+                    {o.color && <span className="status-dot" style={{ color: o.color }} aria-hidden />}
+                    <span className="choice-label">{o.label}</span>
+                    {value === o.value && <Check size={15} aria-label="Current" />}
+                  </button>
+                ))}
+              </div>
+            )}
+            {req.kind === 'choice' && !req.instant && (
               <div className="choice-list" role="radiogroup">
                 {req.options.map(o => (
                   <label key={o.value} className={`choice ${value === o.value ? 'on' : ''}`}>
-                    <input type="radio" name="dlg-choice" checked={value === o.value} onChange={() => setValue(o.value)} />{o.label}
+                    <input type="radio" name="dlg-choice" checked={value === o.value} onChange={() => setValue(o.value)} />
+                    {o.color && <span className="status-dot" style={{ color: o.color }} aria-hidden />}{o.label}
                   </label>
                 ))}
               </div>
             )}
             <div className="modal-actions">
               <button type="button" className="btn ghost" onClick={() => close(false)}>Cancel</button>
-              <button ref={okRef} className={`btn ${req.kind === 'confirm' && req.danger ? 'danger-solid' : 'primary'}`}
-                disabled={req.kind === 'text' && !value.trim()}>{req.confirmLabel ?? (req.kind === 'confirm' ? 'Confirm' : 'Save')}</button>
+              {!(req.kind === 'choice' && req.instant) && <button ref={okRef} className={`btn ${req.kind === 'confirm' && req.danger ? 'danger-solid' : 'primary'}`}
+                disabled={req.kind === 'text' && !value.trim()}>{req.confirmLabel ?? (req.kind === 'confirm' ? 'Confirm' : 'Save')}</button>}
             </div>
           </form>
         </div>

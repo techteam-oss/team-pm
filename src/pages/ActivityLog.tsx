@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { History, RotateCcw, Trash2, UserMinus } from 'lucide-react'
+import { Download, History, RotateCcw, Trash2, UserMinus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { isAdmin, useWorkspace } from '../lib/workspace'
 import Avatar from '../components/Avatar'
@@ -46,12 +46,12 @@ export default function ActivityLog() {
   return (
     <div className="stack" style={{ gap: 18 }}>
       <div className="page-head">
-        <div className="page-title"><h1>Activity log</h1><p className="muted small">Every delete, move to trash, restore and member removal, with who did it. Only admins see this.</p></div>
+        <div className="page-title"><h1>Activity log</h1><p className="muted small">Every delete, move to trash, restore, member removal and backup download, with who did it. Only admins see this.</p></div>
         <div className="row">
           <select aria-label="What" value={what} onChange={e => setWhat(e.target.value)}>
             <option value="">Everything</option>
             <option value="task">Tasks</option><option value="list">Lists</option><option value="folder">Folders</option>
-            <option value="space">Spaces</option><option value="attachment">Files</option><option value="member">Members</option>
+            <option value="space">Spaces</option><option value="attachment">Files</option><option value="member">Members</option><option value="workspace">Backups</option>
           </select>
           <select aria-label="Who" value={who} onChange={e => setWho(e.target.value)}>
             <option value="">Anyone</option>
@@ -66,13 +66,13 @@ export default function ActivityLog() {
           <table className="grid tasks log-table">
             <tbody>
               {rows.map(r => {
-                const Icon = r.action === 'restored' ? RotateCcw : r.action === 'removed' ? UserMinus : Trash2
+                const Icon = r.action === 'restored' ? RotateCcw : r.action === 'removed' ? UserMinus : r.action === 'exported' ? Download : Trash2
                 return (
                   <tr key={r.id}>
                     <td className="nowrap"><span className="row" style={{ flexWrap: 'nowrap', gap: 8 }}><Avatar id={r.actor_id ?? ''} name={name(r.actor_id)} size={24} /><b>{name(r.actor_id)}</b></span></td>
                     <td>
-                      <span className={`log-action ${r.action}`}><Icon size={13} aria-hidden />{r.action === 'deleted' ? 'deleted' : r.action === 'trashed' ? 'moved to trash' : r.action}</span>{' '}
-                      {r.entity} <b>{r.name ?? 'untitled'}</b>
+                      <span className={`log-action ${r.action}`}><Icon size={13} aria-hidden />{r.action === 'deleted' ? 'deleted' : r.action === 'trashed' ? 'moved to trash' : r.action === 'exported' ? 'downloaded a backup of' : r.action}</span>{' '}
+                      {r.entity === 'workspace' ? 'the workspace' : r.entity} <b>{r.name ?? 'untitled'}</b>
                       <div className="muted small">{[r.space_name && `Space: ${r.space_name}`, describe(r)].filter(Boolean).join(' · ')}</div>
                     </td>
                     <td className="muted small nowrap" style={{ textAlign: 'right' }} title={new Date(r.created_at).toLocaleString()}>

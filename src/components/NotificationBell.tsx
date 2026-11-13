@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlarmClock, AtSign, Bell, CalendarClock, CheckCheck, CircleCheck, MessageSquare, ShieldCheck, UserPlus } from 'lucide-react'
+import { AlarmClock, AtSign, Bell, CalendarClock, CheckCheck, CircleCheck, MessageSquare, MessageSquareReply, MessagesSquare, ShieldCheck, UserPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 
-type N = { id: number; kind: string; message: string; read_at: string | null; created_at: string; task_id: string | null; task: { list_id: string } | null }
+type N = { id: number; kind: string; message: string; read_at: string | null; created_at: string; task_id: string | null; task: { list_id: string } | null
+  data: { path?: string; blocking?: boolean } | null }
 
 export const KIND_ICON: Record<string, typeof Bell> = {
   mention: AtSign, comment: MessageSquare, comment_assigned: MessageSquare, assigned: UserPlus, qa_review: ShieldCheck,
   ready_for_qa: ShieldCheck, completed: CircleCheck, estimate_exceeded: AlarmClock, due_today: CalendarClock, overdue: CalendarClock,
+  feedback: MessagesSquare, feedback_update: MessageSquareReply,
 }
 const URGENT = new Set(['estimate_exceeded', 'overdue'])
 
@@ -33,7 +35,7 @@ export default function NotificationBell() {
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('notifications')
-      .select('id, kind, message, read_at, created_at, task_id, task:tasks(list_id)')
+      .select('id, kind, message, read_at, created_at, task_id, data, task:tasks(list_id)')
       .eq('user_id', me).order('created_at', { ascending: false }).limit(50)
     setItems((data ?? []) as unknown as N[])
   }, [me])
@@ -70,6 +72,7 @@ export default function NotificationBell() {
       await supabase.from('notifications').update({ read_at: now }).eq('id', n.id)
     }
     if (n.task?.list_id && n.task_id) navigate(`/list/${n.task.list_id}?task=${n.task_id}`)
+    else if (n.data?.path?.startsWith('#/')) navigate(n.data.path.slice(1))
   }
 
   return (
@@ -92,7 +95,7 @@ export default function NotificationBell() {
           </div>
           {shown.length === 0 ? (
             <div className="notif-empty"><Bell size={20} aria-hidden /><div>{onlyUnread ? "You're all caught up." : 'No notifications yet.'}</div>
-              <div className="muted small">Mentions, assignments, QA requests and time alerts show up here.</div></div>
+              <div className="muted small">Mentions, assignments, QA requests, time alerts and feedback replies show up here.</div></div>
           ) : (
             <ul className="notif-list">
               {shown.map(n => {
@@ -100,7 +103,7 @@ export default function NotificationBell() {
                 return (
                   <li key={n.id}>
                     <button className={`notif-item ${n.read_at ? '' : 'unread'}`} onClick={() => openItem(n)}>
-                      <span className={`notif-ic ${URGENT.has(n.kind) ? 'urgent' : ''}`}><Icon size={15} aria-hidden /></span>
+                      <span className={`notif-ic ${URGENT.has(n.kind) || n.data?.blocking ? 'urgent' : ''}`}><Icon size={15} aria-hidden /></span>
                       <span className="notif-body"><span className="notif-msg">{n.message}</span><span className="muted small">{ago(n.created_at)}</span></span>
                       {!n.read_at && <span className="notif-dot" aria-label="Unread" />}
                     </button>

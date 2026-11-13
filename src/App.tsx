@@ -15,6 +15,7 @@ import Profile from './pages/Profile'
 import TeamReport from './pages/TeamReport'
 import ActivityLog from './pages/ActivityLog'
 import Settings from './pages/Settings'
+import Feedback from './pages/Feedback'
 import { TimerProvider } from './lib/time'
 
 function needsPassword() {
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/report" element={<TeamReport />} />
           <Route path="/log" element={<ActivityLog />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/feedback" element={<Feedback />} />
           <Route path="/list/:id" element={<ListPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

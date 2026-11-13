@@ -3,9 +3,13 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { isAdmin, useWorkspace, type Access, type Role } from '../lib/workspace'
 import { askConfirm, notify } from '../components/Dialogs'
-import { Lock } from 'lucide-react'
+import { ago } from '../components/NotificationBell'
+import { KeyRound, Lock, Send } from 'lucide-react'
 
-type Row = { user_id: string; role: Role; full_name: string | null; email: string | null; spaces: Record<string, Access> }
+type Row = { user_id: string; role: Role; full_name: string | null; email: string | null; spaces: Record<string, Access>
+  /** Never set a password, so they can't sign in yet. */
+  pending: boolean; invited_at: string | null; last_sign_in_at: string | null }
+type LoginStatus = { member_id: string; has_password: boolean; confirmed: boolean; invited_at: string | null; last_sign_in_at: string | null }
 const ACCESS: Access[] = ['view', 'comment', 'edit', 'full']
 
 export default function Members() {
@@ -19,20 +23,24 @@ export default function Members() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [link, setLink] = useState<string | null>(null)
+  const [resending, setResending] = useState<string | null>(null)
 
   async function load() {
     if (!workspace) return
     const { data: m } = await supabase.from('workspace_members').select('user_id, role').eq('workspace_id', workspace.id)
     const ids = (m ?? []).map(r => r.user_id)
-    const [{ data: p }, { data: sm }] = await Promise.all([
+    const [{ data: p }, { data: sm }, { data: st }] = await Promise.all([
       supabase.from('profiles').select('id, full_name, email').in('id', ids),
       supabase.from('space_members').select('space_id, user_id, access').in('user_id', ids),
+      supabase.rpc('member_login_status', { ws: workspace.id }),
     ])
     setRows((m ?? []).map(r => {
       const prof = p?.find(x => x.id === r.user_id)
       const mine = (sm ?? []).filter(x => x.user_id === r.user_id)
+      const login = ((st ?? []) as LoginStatus[]).find(x => x.member_id === r.user_id)
       return { user_id: r.user_id, role: r.role as Role, full_name: prof?.full_name ?? null, email: prof?.email ?? null,
-        spaces: Object.fromEntries(mine.map(x => [x.space_id, x.access as Access])) }
+        spaces: Object.fromEntries(mine.map(x => [x.space_id, x.access as Access])),
+        pending: login ? !login.has_password : false, invited_at: login?.invited_at ?? null, last_sign_in_at: login?.last_sign_in_at ?? null }
     }).sort((a, b) => (a.full_name ?? a.email ?? '').localeCompare(b.full_name ?? b.email ?? '')))
   }
 
@@ -61,6 +69,28 @@ export default function Members() {
     setEmail(''); setFullName(''); setGrant({}); load()
   }
 
+  // A fresh invite link for someone who never finished signing up, or a set-password link for anyone else.
+  async function resend(r: Row) {
+    if (!workspace || !r.email) return
+    setResending(r.user_id); setMsg(null); setLink(null)
+    const { data, error } = await supabase.functions.invoke('invite-member', {
+      body: { workspace_id: workspace.id, email: r.email, role: r.role === 'owner' ? 'admin' : r.role, resend: true,
+        redirect_to: window.location.origin + window.location.pathname },
+    })
+    setResending(null)
+    if (error || data?.error) {
+      let text = data?.error ?? error?.message ?? 'Something went wrong'
+      try { const j = await (error as { context?: Response })?.context?.json(); if (j?.error) text = j.error } catch { /* ignore */ }
+      notify(text); return
+    }
+    const what = data.kind === 'invite' ? 'A new invite link' : 'A link to set a new password'
+    if (data.emailed) { notify(`${what} was emailed to ${r.email}. It works for 1 hour.`, 'ok'); load(); return }
+    setMsg({ ok: true, text: `${what} for ${r.email} is ready. Email sending isn't set up yet, so send it to them yourself. It works once, for 1 hour:` })
+    setLink(data.invite_link)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    load()
+  }
+
   async function changeRole(r: Row, newRole: Role) {
     const { error } = await supabase.from('workspace_members').update({ role: newRole })
       .eq('workspace_id', workspace!.id).eq('user_id', r.user_id)
@@ -85,7 +115,7 @@ export default function Members() {
 
   return (
     <div className="stack">
-      <div className="page-title"><h1>Members</h1><p className="muted small">Invite people, set their role and choose which spaces they can open.</p></div>
+      <div className="page-title"><h1>Members</h1><p className="muted small">Invite people, set their role and choose which spaces they can open. Invite links work for 1 hour; use Resend invite if one ran out.</p></div>
       <form className="card stack" onSubmit={invite}>
         <h2>Add a person</h2>
         <div className="grid2">
@@ -139,7 +169,12 @@ export default function Members() {
               const locked = self || r.role === 'owner'
               return (
                 <tr key={r.user_id}>
-                  <td><div>{r.full_name ?? r.email}</div><div className="muted small">{r.email}</div></td>
+                  <td>
+                    <div>{r.full_name ?? r.email}</div><div className="muted small">{r.email}</div>
+                    {r.pending
+                      ? <span className="pill warn" title="They have not set a password yet, so they can't sign in.">Invite not accepted{r.invited_at ? ` · sent ${ago(r.invited_at)}` : ''}</span>
+                      : r.last_sign_in_at && <span className="muted small">Last sign-in {ago(r.last_sign_in_at)}</span>}
+                  </td>
                   <td>
                     {locked ? <span className="pill">{r.role}</span> : (
                       <select value={r.role} onChange={e => changeRole(r, e.target.value as Role)}>
@@ -157,7 +192,14 @@ export default function Members() {
                       )}
                     </td>
                   ))}
-                  <td>{!locked && <button className="danger-link" onClick={() => remove(r)}>Remove</button>}</td>
+                  <td>
+                    <div className="member-actions">
+                      {!self && (r.pending
+                        ? <button className="btn small" disabled={resending === r.user_id} onClick={() => resend(r)}><Send size={13} aria-hidden />{resending === r.user_id ? 'Sending…' : 'Resend invite'}</button>
+                        : <button className="btn ghost small" disabled={resending === r.user_id} onClick={() => resend(r)} title="Send them a link to choose a new password"><KeyRound size={13} aria-hidden />{resending === r.user_id ? 'Sending…' : 'Reset password'}</button>)}
+                      {!locked && <button className="danger-link" onClick={() => remove(r)}>Remove</button>}
+                    </div>
+                  </td>
                 </tr>
               )
             })}

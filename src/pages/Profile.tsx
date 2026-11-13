@@ -1,15 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { useWorkspace } from '../lib/workspace'
+import { isAdmin, useWorkspace } from '../lib/workspace'
 import Avatar from '../components/Avatar'
 import ThemeSwitch from '../components/ThemeSwitch'
 import { EMAIL_KINDS } from './Settings'
+import { checkPassword } from '../lib/password'
 
 export default function Profile() {
   const { session } = useAuth()
   const uid = session!.user.id
-  const { people, refresh } = useWorkspace()
+  const { people, refresh, role } = useWorkspace()
   const me = people.find(p => p.id === uid)
   const [name, setName] = useState(me?.name ?? '')
   useEffect(() => { if (me) setName(me.name === me.email ? '' : me.name) }, [me?.name]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -52,8 +53,11 @@ export default function Profile() {
   }
   async function changePassword(e: FormEvent) {
     e.preventDefault()
-    if (pw.length < 8) { setMsg('Use at least 8 characters.'); return }
+    setBusy(true)
+    const problem = await checkPassword(pw, session!.user.email)
+    if (problem) { setBusy(false); setMsg(problem); return }
     const { error } = await supabase.auth.updateUser({ password: pw })
+    setBusy(false)
     setPw(''); setMsg(error ? error.message : 'Password changed.')
   }
 
@@ -81,12 +85,13 @@ export default function Profile() {
       </div>
       <form className="card stack" onSubmit={changePassword}>
         <b>Change password</b>
-        <div className="row"><input type="password" autoComplete="new-password" placeholder="New password (8+ characters)" value={pw} onChange={e => setPw(e.target.value)} /><button>Change</button></div>
+        <div className="row"><input type="password" autoComplete="new-password" placeholder="New password (8+ characters)" value={pw} onChange={e => setPw(e.target.value)} /><button disabled={busy}>{busy ? 'Checking…' : 'Change'}</button></div>
+        <span className="muted small">We check new passwords against lists of leaked passwords. Only a short fingerprint of it is checked, never the password itself.</span>
       </form>
       <div className="card stack">
         <b>Email me when…</b>
         <span className="muted small" style={{ marginTop: -6 }}>You always see these in the bell. Untick to stop the email only.</span>
-        {EMAIL_KINDS.map(k => (
+        {EMAIL_KINDS.filter(k => !k.adminOnly || isAdmin(role)).map(k => (
           <label key={k.kind} className="tb-check"><input type="checkbox" checked={prefs[k.kind] ?? k.on} onChange={e => togglePref(k.kind, e.target.checked)} />{k.label}</label>
         ))}
       </div>

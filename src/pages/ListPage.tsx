@@ -1,5 +1,5 @@
 import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
-import { CalendarDays, ChevronRight, Flag, Inbox, LayoutGrid, List as ListIcon, ListChecks, Network, Plus, Settings2, Eye } from 'lucide-react'
+import { CalendarDays, ChevronDown, ChevronRight, Flag, Inbox, LayoutGrid, List as ListIcon, ListChecks, Network, Plus, Settings2, Eye } from 'lucide-react'
 import { SpaceBadge } from '../components/Layout'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useWorkspace } from '../lib/workspace'
@@ -13,6 +13,7 @@ import StatusEditor from '../components/StatusEditor'
 import CreateTask from '../components/CreateTask'
 import { useAuth } from '../lib/auth'
 import { applyFilters, groupTasks, useListFilters } from '../lib/filters'
+import { askChoice } from '../components/Dialogs'
 
 export default function ListPage() {
   const { id } = useParams()
@@ -69,6 +70,27 @@ export default function ListPage() {
     update(taskId, { status_id: statusId, position })
   }
 
+  // Change status without dragging (drag and drop does not work on touch screens).
+  async function changeStatus(t: Task) {
+    const pick = await askChoice({ title: `Move "${t.title.length > 60 ? t.title.slice(0, 57) + '…' : t.title}" to`, instant: true,
+      initial: t.status_id ?? undefined, options: statuses.map(s => ({ value: s.id, label: s.name, color: s.color })) })
+    if (!pick || pick === t.status_id) return
+    const col = tasks.filter(x => x.status_id === pick && x.id !== t.id)
+    update(t.id, { status_id: pick, position: (col.at(-1)?.position ?? 0) + 1000 })
+  }
+  const statusButton = (t: Task, withLabel = false) => {
+    const st = statusOf(t)
+    return (
+      <button type="button" className={`status-btn ${withLabel ? 'with-label' : ''}`} disabled={!canEdit}
+        aria-label={`Status: ${st?.name ?? 'none'}. ${canEdit ? 'Change status' : ''}`} title={canEdit ? 'Change status' : st?.name}
+        onClick={e => { e.stopPropagation(); changeStatus(t) }}>
+        <span className={`status-dot ${st?.is_done ? 'done' : ''}`} style={{ color: st?.color ?? 'var(--faint)' }} aria-hidden />
+        {withLabel && <span className="lbl">{st?.name}</span>}
+        {canEdit && <ChevronDown size={12} aria-hidden className="caret" />}
+      </button>
+    )
+  }
+
   const person = (uid: string) => people.find(p => p.id === uid)
 
   const row = (t: Task, depth = 0): ReactNode[] => {
@@ -84,7 +106,7 @@ export default function ListPage() {
                 <ChevronRight size={14} className={`chev ${expanded ? 'open' : ''}`} />
               </button>
             ) : <span className="sub-toggle-space" aria-hidden />}
-            <span className={`status-dot ${st?.is_done ? 'done' : ''}`} style={{ color: st?.color ?? 'var(--faint)' }} title={st?.name} aria-hidden />
+            {canEdit ? statusButton(t) : <span className={`status-dot ${st?.is_done ? 'done' : ''}`} style={{ color: st?.color ?? 'var(--faint)' }} title={st?.name} aria-hidden />}
             <span className="t">{t.title}</span>
             {t.subtasks > 0 && (
               <button className="sub-count" title={expanded ? 'Hide subtasks' : 'Show subtasks'} disabled={!t.subs.length}
@@ -231,7 +253,7 @@ export default function ListPage() {
                       onDrop={e => drop(e, st.id, t)}
                       onClick={() => setParam('task', t.id)}>
                       <div className="card-title">{t.title}</div>
-                      <div className="card-meta"><span className="tasknum">#{t.number}</span>{meta(t)}</div>
+                      <div className="card-meta">{canEdit && statusButton(t, true)}<span className="tasknum">#{t.number}</span>{meta(t)}</div>
                       {openSubs[t.id] && t.subs.length > 0 && (
                         <ul className="card-subs">
                           {t.subs.map(c => {

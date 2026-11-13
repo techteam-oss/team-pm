@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   Archive, ChevronRight, CircleUserRound, FolderClosed, FolderPlus, Home, LayoutDashboard, List as ListIcon, ListPlus,
   Lock, LogOut, Menu as MenuIcon, Monitor, Moon, Pencil, Plus, Search, Settings, Square, Sun, Timer, Trash2, Users,
-  CheckSquare, FolderInput, BarChart3, History,
+  CheckSquare, FolderInput, BarChart3, History, ExternalLink, MessageSquarePlus, MessagesSquare, Smartphone,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -16,6 +16,9 @@ import { DialogHost, askChoice, askConfirm, askText, notify } from './Dialogs'
 import type { List, Space } from '../lib/workspace'
 import { fmtClock, useNow, useTimer } from '../lib/time'
 import { applyTheme, getStoredTheme, type Theme } from '../lib/theme'
+import { isEmbedded, isInstalled, openInOwnWindow } from '../lib/embed'
+import FeedbackDialog from './FeedbackDialog'
+import InstallDialog from './InstallDialog'
 
 export function SpaceBadge({ space, size = 20 }: { space: Pick<Space, 'name' | 'color' | 'icon'>; size?: number }) {
   if (space.icon) return <span className="space-badge emoji" style={{ width: size, height: size }} aria-hidden>{space.icon}</span>
@@ -29,6 +32,11 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [drawer, setDrawer] = useState(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme())
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [installOpen, setInstallOpen] = useState(false)
+  const [newFeedback, setNewFeedback] = useState(0)
+  const embedded = isEmbedded()
+  const installed = isInstalled()
   const admin = isAdmin(role)
   const { running, stop } = useTimer()
   const navigate = useNavigate()
@@ -37,6 +45,11 @@ export default function Layout({ children }: { children: ReactNode }) {
   const myName = me?.name ?? session!.user.email ?? '?'
 
   useEffect(() => { setDrawer(false) }, [location.pathname])
+  useEffect(() => {
+    if (!admin || !workspace) return
+    supabase.from('feedback').select('id', { count: 'exact', head: true }).eq('workspace_id', workspace.id).eq('status', 'new')
+      .then(({ count }) => setNewFeedback(count ?? 0))
+  }, [admin, workspace, location.pathname, location.search, feedbackOpen])
   useEffect(() => {
     const on = (e: Event) => setTheme((e as CustomEvent<Theme>).detail)
     window.addEventListener('team-pm-theme', on)
@@ -130,10 +143,11 @@ export default function Layout({ children }: { children: ReactNode }) {
       {drawer && <div className="sidebar-scrim" onClick={() => setDrawer(false)} />}
       <aside className={`sidebar ${drawer ? 'open' : ''}`} aria-label="Workspace navigation">
         <div className="ws-switch">
-          <span className="ws-logo" aria-hidden>{(workspace?.name ?? 'T')[0].toUpperCase()}</span>
+          <img className="ws-logo brand-mark-light" src="brand/impact-hub-mark.svg" width={28} height={28} alt="" />
+          <img className="ws-logo brand-mark-dark" src="brand/impact-hub-mark-dark.svg" width={28} height={28} alt="" />
           <div style={{ minWidth: 0 }}>
-            <div className="ws-name">{workspace?.name ?? 'Team PM'}</div>
-            {role && <div className="ws-sub">{role}</div>}
+            <div className="ws-name">Impact <span className="brand-hub">Hub</span></div>
+            <div className="ws-sub">{[workspace?.name, role].filter(Boolean).join(' · ')}</div>
           </div>
         </div>
         <div className="sidebar-scroll">
@@ -146,6 +160,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               <div className="nav-label">Admin</div>
               <NavLink to="/report" className="nav-item"><BarChart3 size={17} aria-hidden />Team report</NavLink>
               <NavLink to="/members" className="nav-item"><Users size={17} aria-hidden />Members</NavLink>
+              <NavLink to="/feedback" className="nav-item"><MessagesSquare size={17} aria-hidden />Feedback{newFeedback > 0 && <span className="nav-count" aria-label={`${newFeedback} new`}>{newFeedback}</span>}</NavLink>
               <NavLink to="/log" className="nav-item"><History size={17} aria-hidden />Activity log</NavLink>
               <NavLink to="/settings" className="nav-item"><Settings size={17} aria-hidden />Settings</NavLink>
             </>}
@@ -218,6 +233,10 @@ export default function Layout({ children }: { children: ReactNode }) {
             </div>
           )}
         </div>
+        <div className="sidebar-foot">
+          <button className="btn ghost small" onClick={() => setFeedbackOpen(true)}><MessageSquarePlus size={15} aria-hidden />Send feedback</button>
+          {!installed && <button className="btn ghost small" onClick={() => setInstallOpen(true)}><Smartphone size={15} aria-hidden />Get the phone app</button>}
+        </div>
       </aside>
       {settingsFor && spaces.find(x => x.id === settingsFor) && (
         <SpaceSettings space={spaces.find(x => x.id === settingsFor)!} isAdmin={admin} onClose={() => setSettingsFor(null)} onChanged={refresh} />
@@ -239,6 +258,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <button className="icon-btn" title="Stop timer" aria-label="Stop timer" onClick={stop}><Square size={12} fill="currentColor" /></button>
               </span>
             )}
+            {embedded && <button className="icon-btn top-ext" title="Open in its own window" aria-label="Open Impact Hub in its own window" onClick={openInOwnWindow}><ExternalLink size={17} /></button>}
             <NotificationBell />
             <Menu title="Your account" className="me-btn" icon={<Avatar name={myName} id={session!.user.id} size={30} />}
               head={<div className="row" style={{ flexWrap: 'nowrap' }}><Avatar name={myName} id={session!.user.id} size={32} />
@@ -246,6 +266,10 @@ export default function Layout({ children }: { children: ReactNode }) {
               items={[
                 'sep',
                 { label: 'Profile', icon: <CircleUserRound size={14} />, onClick: () => navigate('/profile') },
+                { label: 'Send feedback', icon: <MessageSquarePlus size={14} />, onClick: () => setFeedbackOpen(true) },
+                admin ? null : { label: 'Your feedback', icon: <MessagesSquare size={14} />, onClick: () => navigate('/feedback') },
+                installed ? null : { label: 'Add to phone home screen', icon: <Smartphone size={14} />, onClick: () => setInstallOpen(true) },
+                embedded ? { label: 'Open in its own window', icon: <ExternalLink size={14} />, onClick: openInOwnWindow } : null,
                 'sep',
                 { label: `Light${theme === 'light' ? ' ✓' : ''}`, icon: <Sun size={14} />, onClick: () => changeTheme('light') },
                 { label: `Dark${theme === 'dark' ? ' ✓' : ''}`, icon: <Moon size={14} />, onClick: () => changeTheme('dark') },
@@ -257,6 +281,8 @@ export default function Layout({ children }: { children: ReactNode }) {
         </header>
         <section className="content" id="main-content">{children}</section>
       </main>
+      {feedbackOpen && <FeedbackDialog onClose={() => setFeedbackOpen(false)} />}
+      {installOpen && <InstallDialog onClose={() => setInstallOpen(false)} />}
       <DialogHost />
     </div>
   )
